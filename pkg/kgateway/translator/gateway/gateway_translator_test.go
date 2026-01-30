@@ -2374,6 +2374,11 @@ func TestValidation(t *testing.T) {
 			minMode:   apisettings.ValidationStrict,
 		},
 		{
+			name:      "Transformation Clear Route Cache",
+			category:  "policy",
+			inputFile: "policy-transformation-clear-route-cache.yaml",
+		},
+		{
 			name:      "Template Structure Invalid",
 			category:  "policy",
 			inputFile: "policy-template-structure-invalid.yaml",

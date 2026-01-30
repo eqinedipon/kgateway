@@ -254,6 +254,21 @@ func mergeRustformationJsonInPlace(obj1, obj2 any) error {
 	mergeRustFormationRequestResponseJson("response", m1, m2)
 	mergeRustFormationRequestResponseJson("request", m1, m2)
 
+	// Merge clearRouteCache using OR logic: if either policy has it set to true, result is true
+	v1Bool := false
+	v2Bool := false
+	if v1, ok := m1["clearRouteCache"]; ok {
+		if b, ok := v1.(bool); ok {
+			v1Bool = b
+		}
+	}
+	if v2, ok := m2["clearRouteCache"]; ok {
+		if b, ok := v2.(bool); ok {
+			v2Bool = b
+		}
+	}
+	m1["clearRouteCache"] = v1Bool || v2Bool
+
 	return nil
 }
 

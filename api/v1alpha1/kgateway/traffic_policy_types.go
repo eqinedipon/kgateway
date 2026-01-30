@@ -191,6 +191,15 @@ type TransformationPolicy struct {
 	// Response is used to modify the response path.
 	// +optional
 	Response *Transform `json:"response,omitempty"`
+
+	// ClearRouteCache controls whether the route cache should be cleared after request transformations.
+	// When enabled, the Envoy route cache is cleared after the request transform completes successfully,
+	// which can reduce memory overhead in scenarios with many unique request patterns.
+	// When multiple transformation policies are attached to the same resource, if any has this enabled,
+	// the cache will be cleared.
+	// +optional
+	// +kubebuilder:default=false
+	ClearRouteCache *bool `json:"clearRouteCache,omitempty"`
 }
 
 // Transform defines the operations to be performed by the transformation.

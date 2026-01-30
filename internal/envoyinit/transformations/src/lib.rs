@@ -17,6 +17,8 @@ pub struct LocalTransformationConfig {
     pub request: Option<LocalTransform>,
     #[serde(default)]
     pub response: Option<LocalTransform>,
+    #[serde(default, rename = "clearRouteCache")]
+    pub clear_route_cache: bool,
 }
 
 #[derive(Default, Clone, Deserialize)]

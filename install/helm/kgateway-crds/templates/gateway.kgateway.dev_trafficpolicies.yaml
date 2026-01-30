@@ -1642,6 +1642,15 @@ spec:
                   Transformation is used to mutate and transform requests and responses
                   before forwarding them to the destination.
                 properties:
+                  clearRouteCache:
+                    default: false
+                    description: |-
+                      ClearRouteCache controls whether the route cache should be cleared after request transformations.
+                      When enabled, the Envoy route cache is cleared after the request transform completes successfully,
+                      which can reduce memory overhead in scenarios with many unique request patterns.
+                      When multiple transformation policies are attached to the same resource, if any has this enabled,
+                      the cache will be cleared.
+                    type: boolean
                   request:
                     description: Request is used to modify the request path.
                     properties:

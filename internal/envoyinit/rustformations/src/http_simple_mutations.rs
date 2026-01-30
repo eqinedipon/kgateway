@@ -267,6 +267,13 @@ impl Filter {
         !transform.is_empty()
     }
 
+    fn should_clear_route_cache(&self) -> bool {
+        match self.get_per_route_config() {
+            Some(config) => config.transformations.clear_route_cache,
+            None => self.filter_config.transformations.clear_route_cache,
+        }
+    }
+
     fn transform_request<EHF: EnvoyHttpFilter>(&self, envoy_filter: &mut EHF) -> bool {
         if let Some(transform) = self.get_request_transform() {
             match transformations::jinja::transform_request(
@@ -275,7 +282,12 @@ impl Filter {
                 self.get_request_headers_map(),
                 EnvoyTransformationOps::new(envoy_filter),
             ) {
-                Ok(()) => {}
+                Ok(()) => {
+                    // Clear route cache if configured
+                    if self.should_clear_route_cache() {
+                        envoy_filter.clear_route_cache();
+                    }
+                }
                 Err(err) => {
                     if let Some(e) = err.downcast_ref::<TransformationError>() {
                         match e {
