@@ -76,12 +76,8 @@ Routes:
 Statuses:
   gateways:
     default/example-gateway:
+      attachedListenerSets: 0
       conditions:
-      - lastTransitionTime: null
-        message: ""
-        reason: ListenerSetsNotAllowed
-        status: Unknown
-        type: AttachedListenerSets
       - lastTransitionTime: null
         message: 'Some listeners are not programmed: https-invalid-secret: Secret
           default/invalid-https-secret not found.'

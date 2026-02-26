@@ -38,7 +38,7 @@ Listeners:
                 prefixLen: 8
               - addressPrefix: 192.168.0.0
                 prefixLen: 16
-              - addressPrefix: "fc00::"
+              - addressPrefix: 'fc00::'
                 prefixLen: 7
         rds:
           configSource:
@@ -80,12 +80,8 @@ Routes:
 Statuses:
   gateways:
     default/example-gateway:
+      attachedListenerSets: 0
       conditions:
-      - lastTransitionTime: null
-        message: ""
-        reason: ListenerSetsNotAllowed
-        status: Unknown
-        type: AttachedListenerSets
       - lastTransitionTime: null
         message: Successfully accepted Gateway
         reason: Accepted

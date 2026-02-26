@@ -36,12 +36,8 @@ Listeners:
 Statuses:
   gateways:
     default/example-gateway:
+      attachedListenerSets: 1
       conditions:
-      - lastTransitionTime: null
-        message: ""
-        reason: ListenerSetsAttached
-        status: "True"
-        type: AttachedListenerSets
       - lastTransitionTime: null
         message: Successfully accepted Gateway
         reason: Accepted
@@ -90,7 +86,6 @@ Statuses:
           status: "True"
           type: ResolvedRefs
         name: tls-no-routes
-        port: 8443
         supportedKinds:
         - group: gateway.networking.k8s.io
           kind: TLSRoute
@@ -119,7 +114,6 @@ Statuses:
           status: "True"
           type: Programmed
         name: tls-with-routes
-        port: 8444
         supportedKinds:
         - group: gateway.networking.k8s.io
           kind: TLSRoute

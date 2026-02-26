@@ -288,12 +288,8 @@ Secrets:
 Statuses:
   gateways:
     default/test:
+      attachedListenerSets: 0
       conditions:
-      - lastTransitionTime: null
-        message: ""
-        reason: ListenerSetsNotAllowed
-        status: Unknown
-        type: AttachedListenerSets
       - lastTransitionTime: null
         message: Successfully accepted Gateway
         reason: Accepted

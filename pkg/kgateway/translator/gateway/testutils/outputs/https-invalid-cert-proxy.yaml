@@ -54,12 +54,8 @@ Routes:
 Statuses:
   gateways:
     default/example-gateway:
+      attachedListenerSets: 0
       conditions:
-      - lastTransitionTime: null
-        message: ""
-        reason: ListenerSetsNotAllowed
-        status: Unknown
-        type: AttachedListenerSets
       - lastTransitionTime: null
         message: 'Some listeners are not programmed: https: Secret default/missing-cert
           not found.; https2: invalid TLS secret default/invalid-cert: tls: failed

@@ -5,21 +5,17 @@ Clusters:
 Statuses:
   gateways:
     default/example-gateway:
+      attachedListenerSets: 0
       conditions:
       - lastTransitionTime: null
-        message: ""
-        reason: ListenerSetsNotAllowed
-        status: Unknown
-        type: AttachedListenerSets
-      - lastTransitionTime: null
-        message: No valid listeners
-        reason: ListenersNotValid
-        status: "False"
+        message: Successfully accepted Gateway
+        reason: Accepted
+        status: "True"
         type: Accepted
       - lastTransitionTime: null
-        message: ""
-        reason: Invalid
-        status: "False"
+        message: Successfully programmed Gateway
+        reason: Programmed
+        status: "True"
         type: Programmed
       listeners:
       - attachedRoutes: 0

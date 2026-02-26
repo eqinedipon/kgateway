@@ -60,18 +60,17 @@ Listeners:
         mergeSlashes: true
         normalizePath: true
         originalIpDetectionExtensions:
-          - name: envoy.http.original_ip_detection.xff
-            typedConfig:
-              '@type': type.googleapis.com/envoy.extensions.http.original_ip_detection.xff.v3.XffConfig
-              xffNumTrustedHops: 2
-              skipXffAppend: false
+        - name: envoy.http.original_ip_detection.xff
+          typedConfig:
+            '@type': type.googleapis.com/envoy.extensions.http.original_ip_detection.xff.v3.XffConfig
+            skipXffAppend: false
+            xffNumTrustedHops: 2
         rds:
           configSource:
             ads: {}
             resourceApiVersion: V3
           routeConfigName: listener~8080
         serverHeaderTransformation: APPEND_IF_ABSENT
-        skipXffAppend: false
         statPrefix: http
         streamIdleTimeout: 30s
         tracing:
@@ -114,7 +113,7 @@ Listeners:
         default.httpSettings.serverHeaderTransformation:
         - gateway.kgateway.dev/ListenerPolicy/default/misc
         default.httpSettings.skipXffAppend:
-          - gateway.kgateway.dev/ListenerPolicy/default/misc
+        - gateway.kgateway.dev/ListenerPolicy/default/misc
         default.httpSettings.tracing:
         - gateway.kgateway.dev/ListenerPolicy/default/tracing
         default.httpSettings.upgradeConfig:
@@ -140,7 +139,7 @@ Routes:
         default.httpSettings.serverHeaderTransformation:
         - gateway.kgateway.dev/ListenerPolicy/default/misc
         default.httpSettings.skipXffAppend:
-          - gateway.kgateway.dev/ListenerPolicy/default/misc
+        - gateway.kgateway.dev/ListenerPolicy/default/misc
         default.httpSettings.tracing:
         - gateway.kgateway.dev/ListenerPolicy/default/tracing
         default.httpSettings.upgradeConfig:
@@ -153,12 +152,8 @@ Routes:
 Statuses:
   gateways:
     default/example-gateway:
+      attachedListenerSets: 0
       conditions:
-      - lastTransitionTime: null
-        message: ""
-        reason: ListenerSetsNotAllowed
-        status: Unknown
-        type: AttachedListenerSets
       - lastTransitionTime: null
         message: Successfully accepted Gateway
         reason: Accepted
