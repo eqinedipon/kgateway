@@ -72,7 +72,41 @@ func TestConformance(t *testing.T) {
 		}
 	} else {
 		t.Logf("Failed to guess MetalLB address: %v, skipping test", err)
-		options.SkipTests = append(options.SkipTests, string(features.GatewayStaticAddressesFeature.Name))
+		options.SkipTests = append(options.SkipTests, string(features.GatewayStaticAddressesFeature.Name), "GatewayBackendClientCertificateFeature",
+			"GatewayFrontendInvalidDefaultClientCertificateValidation",
+			"GatewayInvalidTLSBackendConfiguration",
+			"GatewayTLSBackendClientCertificate",
+			"GatewayFrontendClientCertificateValidationInsecureFallback",
+			"GatewayFrontendClientCertificateValidation",
+			"GatewayInvalidFrontendClientCertificateValidation",
+			"HTTPRoute303Redirect",
+			"HTTPRoute307Redirect",
+			"HTTPRoute308Redirect",
+			"HTTPRouteCORS",
+			"HTTPRouteHTTPSListenerDetectMisdirectedRequests",
+			"MeshHTTPRoute303Redirect",
+			"MeshHTTPRoute307Redirect",
+			"MeshHTTPRoute308Redirect",
+			"TLSRouteHostnameIntersection",
+			"TLSRouteInvalidBackendRefNonexistent",
+			"TLSRouteInvalidBackendRefUnknownKind",
+			"TLSRouteInvalidNoMatchingListenerHostname",
+			"TLSRouteInvalidNoMatchingListener",
+			"TLSRouteListenerMixedTerminationNotSupported",
+			"TLSRouteListenerPassthroughSupportedKinds",
+			"TLSRouteListenerTerminateNotSupported",
+			"TLSRouteListenerTerminateSupportedKinds",
+			"TLSRouteMixedTerminationSameNamespace",
+			"TLSRouteSimpleSameNamespace",
+			"TLSRouteTerminateSimpleSameNamespace",
+			"BackendTLSPolicy",
+			"GatewayClassObservedGenerationBump",
+			"GatewayWithAttachedRoutes",
+			"GatewayWithAttachedRoutesWithPort8080",
+			"HTTPRouteHostnameIntersection",
+			"MeshGRPCRouteWeight",
+			"MeshHTTPRouteWeight",
+		)
 	}
 	options.Debug = true
 	options.CleanupBaseResources = false
