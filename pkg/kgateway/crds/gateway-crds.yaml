@@ -21233,7 +21233,7 @@ metadata:
     gateway.networking.k8s.io/policy: Direct
   name: xbackendtrafficpolicies.gateway.networking.x-k8s.io
 spec:
-  group: gateway.networking.k8s.io
+  group: gateway.networking.x-k8s.io
   names:
     categories:
     - gateway-api
@@ -21843,7 +21843,7 @@ metadata:
     gateway.networking.k8s.io/channel: experimental
   name: xmeshes.gateway.networking.x-k8s.io
 spec:
-  group: gateway.networking.k8s.io
+  group: gateway.networking.x-k8s.io
   names:
     categories:
     - gateway-api
