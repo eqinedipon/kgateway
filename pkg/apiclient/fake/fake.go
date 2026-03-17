@@ -83,6 +83,9 @@ func fakeIstioClient(objects ...client.Object) kube.Client {
 }
 
 func fakeKgwClient(objects ...client.Object) *fake.Clientset {
+	// The generated clientset in this repo does not include the newer NewClientset helper
+	// because we do not generate applyconfigs for these APIs yet.
+	//nolint:staticcheck // SA1019: use the generated fake until applyconfig generation is enabled
 	f := fake.NewSimpleClientset()
 	for _, obj := range objects {
 		gvr := mustGetGVR(obj, schemes.DefaultScheme())

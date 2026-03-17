@@ -200,7 +200,7 @@ rules:
 - apiGroups:
   - gateway.networking.x-k8s.io
   resources:
-  - xlistenersets
+  - listenersets
   verbs:
   - get
   - list
@@ -208,7 +208,7 @@ rules:
 - apiGroups:
   - gateway.networking.x-k8s.io
   resources:
-  - xlistenersets/status
+  - listenersets/status
   verbs:
   - patch
   - update

@@ -62,7 +62,7 @@ var (
 	GwApiV1_1_0 = GwApiVersionMustParse("1.1.0")
 	// HTTPRoutes.spec.rules[].name was added in 1.2.0 experimental (added to standard in 1.4.0)
 	GwApiV1_2_0 = GwApiVersionMustParse("1.2.0")
-	// XListenerSets and CORS filters were added in 1.3.0 experimental
+	// ListenerSets and CORS filters were added in 1.3.0 experimental
 	GwApiV1_3_0 = GwApiVersionMustParse("1.3.0")
 	// BackendTLSPolicy moved to standard/v1 in 1.4.0 and experimental (alpha1v3 version is not supported), HTTPRoutes.spec.rules[].name was added to standard in 1.4.0
 	GwApiV1_4_0 = GwApiVersionMustParse("1.4.0")

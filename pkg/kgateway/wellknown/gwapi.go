@@ -7,13 +7,16 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gwv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
-	gwxv1a1 "sigs.k8s.io/gateway-api/apisx/v1alpha1"
 )
 
 const (
 	// Group string for Gateway API resources
-	GatewayGroup      = gwv1.GroupName
-	XListenerSetGroup = gwxv1a1.GroupName
+	GatewayGroup = gwv1.GroupName
+	// XListenerSetGroup is the promoted ListenerSet API group.
+	// TODO: Rename the exported XListenerSet* identifiers to ListenerSet* in a follow-up cleanup.
+	// We intentionally keep the legacy symbol names in this bump PR even though ListenerSet
+	// moved from apisx/v1alpha1 to gateway.networking.k8s.io/v1 in Gateway API v1.5.1.
+	XListenerSetGroup = gwv1.GroupName
 
 	// Kind strings
 	ServiceKind          = "Service"
@@ -28,8 +31,9 @@ const (
 	ReferenceGrantKind   = "ReferenceGrant"
 	BackendTLSPolicyKind = "BackendTLSPolicy"
 
-	// Kind string for XListenerSet resource
-	XListenerSetKind = "XListenerSet"
+	// XListenerSetKind is the promoted ListenerSet kind.
+	// TODO: Rename the exported XListenerSet* identifiers to ListenerSet* in a follow-up cleanup.
+	XListenerSetKind = "ListenerSet"
 
 	// List Kind strings
 	HTTPRouteListKind      = "HTTPRouteList"
@@ -129,14 +133,18 @@ var (
 		},
 	}
 
+	// XListenerSetGVK is the promoted ListenerSet GVK.
+	// TODO: Rename the exported XListenerSet* identifiers to ListenerSet* in a follow-up cleanup.
 	XListenerSetGVK = schema.GroupVersionKind{
 		Group:   XListenerSetGroup,
-		Version: gwxv1a1.GroupVersion.Version,
+		Version: gwv1.GroupVersion.Version,
 		Kind:    XListenerSetKind,
 	}
+	// XListenerSetGVR is the promoted ListenerSet GVR.
+	// TODO: Rename the exported XListenerSet* identifiers to ListenerSet* in a follow-up cleanup.
 	XListenerSetGVR = schema.GroupVersionResource{
 		Group:    XListenerSetGroup,
-		Version:  gwxv1a1.GroupVersion.Version,
-		Resource: "xlistenersets",
+		Version:  gwv1.GroupVersion.Version,
+		Resource: "listenersets",
 	}
 )
