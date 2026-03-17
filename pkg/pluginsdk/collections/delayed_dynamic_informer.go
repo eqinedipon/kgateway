@@ -299,5 +299,7 @@ func ptrToFunc(f func() bool) *func() bool {
 	return &f
 }
 
-var _ kclient.Informer[*unstructured.Unstructured] = &typedDynamicUnstructuredInformer{}
-var _ kclient.Informer[*unstructured.Unstructured] = &delayedUnstructuredInformer{}
+var (
+	_ kclient.Informer[*unstructured.Unstructured] = &typedDynamicUnstructuredInformer{}
+	_ kclient.Informer[*unstructured.Unstructured] = &delayedUnstructuredInformer{}
+)

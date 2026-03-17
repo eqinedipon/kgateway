@@ -435,7 +435,7 @@ spec:
                     type: array
                     x-kubernetes-list-type: set
                     x-kubernetes-validations:
-                    - message: AllowHeaders cannot contain '*' alongside other methods
+                    - message: AllowHeaders cannot contain '*' alongside other headers
                       rule: '!(''*'' in self && self.size() > 1)'
                   allowMethods:
                     description: |-
