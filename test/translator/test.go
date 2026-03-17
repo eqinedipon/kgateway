@@ -618,17 +618,20 @@ func AreReportsSuccess(gwNN types.NamespacedName, reportsMap reports.ReportMap) 
 		}
 	}
 
-	for ls := range reportsMap.ListenerSets[wellknown.XListenerSetGVK] {
-		l := gwv1.ListenerSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      ls.Name,
-				Namespace: ls.Namespace,
-			},
-		}
-		status := reportsMap.BuildListenerSetStatus(context.Background(), l)
-		for _, c := range status.Conditions {
-			if c.Status != metav1.ConditionTrue {
-				return fmt.Errorf("condition not accepted for listenerSet %s condition: %v", ls, c)
+	for gvk, listenerSetsForGVK := range reportsMap.ListenerSets {
+		for ls := range listenerSetsForGVK {
+			l := gwv1.ListenerSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ls.Name,
+					Namespace: ls.Namespace,
+				},
+			}
+			l.SetGroupVersionKind(gvk)
+			status := reportsMap.BuildListenerSetStatus(context.Background(), l)
+			for _, c := range status.Conditions {
+				if c.Status != metav1.ConditionTrue {
+					return fmt.Errorf("condition not accepted for listenerSet %s condition: %v", ls, c)
+				}
 			}
 		}
 	}

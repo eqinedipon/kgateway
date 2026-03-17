@@ -408,14 +408,10 @@ func GatewaysForEnvoyTransformationFunc(config *GatewayIndexConfig) func(kctx kr
 				Namespace: gw.Namespace,
 				Name:      gw.Name,
 			},
-			Obj:       gw,
-			Listeners: make([]ir.Listener, 0, len(gw.Spec.Listeners)),
-			DeniedListenerSets: map[schema.GroupVersionKind]ir.ListenerSets{
-				wellknown.XListenerSetGVK: []ir.ListenerSet{},
-			},
-			AllowedListenerSets: map[schema.GroupVersionKind]ir.ListenerSets{
-				wellknown.XListenerSetGVK: []ir.ListenerSet{},
-			},
+			Obj:                 gw,
+			Listeners:           make([]ir.Listener, 0, len(gw.Spec.Listeners)),
+			DeniedListenerSets:  map[schema.GroupVersionKind]ir.ListenerSets{},
+			AllowedListenerSets: map[schema.GroupVersionKind]ir.ListenerSets{},
 		}
 
 		if gw.Annotations[string(apiannotations.PerConnectionBufferLimit)] != "" { //nolint:staticcheck // deprecated annotation
@@ -492,13 +488,14 @@ func GatewaysForEnvoyTransformationFunc(config *GatewayIndexConfig) func(kctx kr
 
 		for _, ls := range listenerSets {
 			if ls.GroupVersionKind().Empty() {
-				ls.SetGroupVersionKind(wellknown.XListenerSetGVK)
+				ls.SetGroupVersionKind(wellknown.ListenerSetGVK)
 			}
+			lsGVK := ls.GroupVersionKind()
 
 			lsIR := ir.ListenerSet{
 				ObjectSource: ir.ObjectSource{
-					Group:     wellknown.XListenerSetGroup,
-					Kind:      wellknown.XListenerSetKind,
+					Group:     lsGVK.Group,
+					Kind:      lsGVK.Kind,
 					Namespace: ls.Namespace,
 					Name:      ls.Name,
 				},
@@ -519,8 +516,8 @@ func GatewaysForEnvoyTransformationFunc(config *GatewayIndexConfig) func(kctx kr
 					Parent:           ls,
 					AttachedPolicies: ToAttachedPolicies(listenerPolicies),
 					PolicyAncestorRef: gwv1.ParentReference{
-						Group:     new(gwv1.Group(wellknown.XListenerSetGVK.Group)),
-						Kind:      new(gwv1.Kind(wellknown.XListenerSetGVK.Kind)),
+						Group:     new(gwv1.Group(lsGVK.Group)),
+						Kind:      new(gwv1.Kind(lsGVK.Kind)),
 						Name:      gwv1.ObjectName(ls.Name),
 						Namespace: new(gwv1.Namespace(ls.Namespace)),
 					},
@@ -529,7 +526,7 @@ func GatewaysForEnvoyTransformationFunc(config *GatewayIndexConfig) func(kctx kr
 
 			if gw.Spec.AllowedListeners == nil {
 				lsIR.Err = errors.New("Unable to attach to parent, gateway has not enabled allowedListeners")
-				gwIR.DeniedListenerSets[wellknown.XListenerSetGVK] = append(gwIR.DeniedListenerSets[wellknown.XListenerSetGVK], lsIR)
+				gwIR.DeniedListenerSets[lsGVK] = append(gwIR.DeniedListenerSets[lsGVK], lsIR)
 				continue
 			}
 
@@ -537,11 +534,11 @@ func GatewaysForEnvoyTransformationFunc(config *GatewayIndexConfig) func(kctx kr
 			// We return the denied list of ls to have their status set to rejected during validation
 			if !allowedNs(kctx, ls.GetNamespace()) {
 				lsIR.Err = errors.New("Attachment not allowed")
-				gwIR.DeniedListenerSets[wellknown.XListenerSetGVK] = append(gwIR.DeniedListenerSets[wellknown.XListenerSetGVK], lsIR)
+				gwIR.DeniedListenerSets[lsGVK] = append(gwIR.DeniedListenerSets[lsGVK], lsIR)
 				continue
 			}
 
-			gwIR.AllowedListenerSets[wellknown.XListenerSetGVK] = append(gwIR.AllowedListenerSets[wellknown.XListenerSetGVK], lsIR)
+			gwIR.AllowedListenerSets[lsGVK] = append(gwIR.AllowedListenerSets[lsGVK], lsIR)
 			gwIR.Listeners = append(gwIR.Listeners, lsIR.Listeners...)
 		}
 

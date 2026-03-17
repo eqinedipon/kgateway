@@ -101,19 +101,32 @@ var (
 	// test cases
 	testCases = map[string]*base.TestCase{
 		"TestValidListenerSet": {
-			Manifests: []string{validListenerSetManifest},
+			ManifestsWithTransform: map[string]func(string) string{
+				validListenerSetManifest: base.TransformListenerSetManifest,
+			},
 		},
 		"TestInvalidListenerSetNotAllowed": {
-			Manifests: []string{invalidListenerSetNotAllowedManifest},
+			ManifestsWithTransform: map[string]func(string) string{
+				invalidListenerSetNotAllowedManifest: base.TransformListenerSetManifest,
+			},
 		},
 		"TestInvalidListenerSetNonExistingGW": {
-			Manifests: []string{invalidListenerSetNonExistingGWManifest},
+			ManifestsWithTransform: map[string]func(string) string{
+				invalidListenerSetNonExistingGWManifest: base.TransformListenerSetManifest,
+			},
 		},
 		"TestPolicies": {
-			Manifests: []string{validListenerSetManifest, validListenerSetManifest2, policyManifest},
+			ManifestsWithTransform: map[string]func(string) string{
+				validListenerSetManifest:  base.TransformListenerSetManifest,
+				validListenerSetManifest2: base.TransformListenerSetManifest,
+				policyManifest:            base.TransformListenerSetManifest,
+			},
 		},
 		"TestConflictedListenerSet": {
-			Manifests: []string{validListenerSetManifest, conflictedListenerSetManifest},
+			ManifestsWithTransform: map[string]func(string) string{
+				validListenerSetManifest:      base.TransformListenerSetManifest,
+				conflictedListenerSetManifest: base.TransformListenerSetManifest,
+			},
 		},
 	}
 )

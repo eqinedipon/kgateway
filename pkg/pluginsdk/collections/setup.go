@@ -8,6 +8,8 @@ import (
 	"istio.io/istio/pkg/kube/krt"
 	"istio.io/istio/pkg/kube/kubetypes"
 	"istio.io/istio/pkg/util/smallset"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gwv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -42,7 +44,29 @@ func (c *CommonCollections) InitCollections(
 	// ON_EXPERIMENTAL_PROMOTION : Remove this block
 	// Ref: https://github.com/kgateway-dev/kgateway/issues/12827
 	if globalSettings.EnableExperimentalGatewayAPIFeatures {
-		kubeRawListenerSets = krt.WrapClient(kclient.NewDelayedInformer[*gwv1.ListenerSet](c.Client, wellknown.XListenerSetGVR, kubetypes.StandardInformer, filter), c.KrtOpts.ToOptions("KubeListenerSets")...)
+		promotedListenerSets := krt.WrapClient(
+			kclient.NewDelayedInformer[*gwv1.ListenerSet](c.Client, wellknown.ListenerSetGVR, kubetypes.StandardInformer, filter),
+			c.KrtOpts.ToOptions("KubePromotedListenerSets")...,
+		)
+		legacyListenerSetsRaw := krt.WrapClient(
+			newDelayedDynamicUnstructuredInformer(c.Client, wellknown.XListenerSetGVR, filter),
+			c.KrtOpts.ToOptions("KubeLegacyXListenerSets")...,
+		)
+		legacyListenerSets := krt.NewManyCollection(legacyListenerSetsRaw, func(kctx krt.HandlerContext, in *unstructured.Unstructured) []*gwv1.ListenerSet {
+			if in == nil {
+				return nil
+			}
+			ls := &gwv1.ListenerSet{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(in.UnstructuredContent(), ls); err != nil {
+				return nil
+			}
+			ls.SetGroupVersionKind(wellknown.XListenerSetGVK)
+			return []*gwv1.ListenerSet{ls}
+		}, c.KrtOpts.ToOptions("KubeLegacyXListenerSetsConverted")...)
+		kubeRawListenerSets = krt.JoinCollection(
+			[]krt.Collection[*gwv1.ListenerSet]{promotedListenerSets, legacyListenerSets},
+			c.KrtOpts.ToOptions("KubeListenerSets")...,
+		)
 	} else {
 		// If disabled, still build a collection but make it always empty
 		kubeRawListenerSets = krt.NewStaticCollection[*gwv1.ListenerSet](nil, nil, c.KrtOpts.ToOptions("disable/KubeListenerSets")...)

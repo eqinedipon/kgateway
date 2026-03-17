@@ -72,22 +72,27 @@ func buildStatusesFromReports(
 
 	// Build ListenerSet statuses. We need to use the actual ListenerSet object to make sure that
 	// status.listeners are correctly populated instead of using the object metadata.
-	for listenerSetNN := range reportsMap.ListenerSets[wellknown.XListenerSetGVK] {
-		// Use the actual ListenerSet object from the input if available, otherwise create an empty one.
-		var listenerSet gwv1.ListenerSet
-		if actualLS, exists := listenerSets[listenerSetNN]; exists && actualLS != nil {
-			listenerSet = *actualLS
-		} else {
-			listenerSet = gwv1.ListenerSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      listenerSetNN.Name,
-					Namespace: listenerSetNN.Namespace,
-				},
+	for gvk, listenerSetsForGVK := range reportsMap.ListenerSets {
+		for listenerSetNN := range listenerSetsForGVK {
+			// Use the actual ListenerSet object from the input if available, otherwise create an empty one.
+			var listenerSet gwv1.ListenerSet
+			if actualLS, exists := listenerSets[listenerSetNN]; exists && actualLS != nil {
+				listenerSet = *actualLS
+			} else {
+				listenerSet = gwv1.ListenerSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      listenerSetNN.Name,
+						Namespace: listenerSetNN.Namespace,
+					},
+				}
 			}
-		}
-		if status := reportsMap.BuildListenerSetStatus(ctx, listenerSet); status != nil {
-			normalizeListenerSetStatus(status, fixedTime)
-			statuses.ListenerSets[listenerSetNN.String()] = status
+			if listenerSet.GroupVersionKind().Empty() {
+				listenerSet.SetGroupVersionKind(gvk)
+			}
+			if status := reportsMap.BuildListenerSetStatus(ctx, listenerSet); status != nil {
+				normalizeListenerSetStatus(status, fixedTime)
+				statuses.ListenerSets[listenerSetNN.String()] = status
+			}
 		}
 	}
 

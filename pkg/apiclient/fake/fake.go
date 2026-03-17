@@ -9,6 +9,7 @@ import (
 	"istio.io/istio/pkg/test"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,6 +26,15 @@ import (
 )
 
 var _ apiclient.Client = (*cli)(nil)
+
+func init() {
+	// Register the legacy XListenerSet list kind so the fake dynamic client can
+	// back the delayed legacy informer used by older Gateway API versions.
+	kube.FakeIstioScheme.AddKnownTypeWithName(
+		wellknown.XListenerSetGVK.GroupVersion().WithKind("XListenerSetList"),
+		&unstructured.UnstructuredList{},
+	)
+}
 
 type cli struct {
 	kube.Client
