@@ -401,12 +401,4 @@ import (
 	// github.com/envoyproxy/go-control-plane/ratelimit/...
 	_ "github.com/envoyproxy/go-control-plane/ratelimit/config/ratelimit/v3"
 	_ "github.com/envoyproxy/go-control-plane/ratelimit/service/ratelimit/v3"
-
-	// envoy-gloo filter types
-	_ "github.com/solo-io/envoy-gloo/go/config/filter/http/aws_lambda/v2"
-	_ "github.com/solo-io/envoy-gloo/go/config/filter/http/nats/streaming/v2"
-	_ "github.com/solo-io/envoy-gloo/go/config/filter/http/transformation/v2"
-	_ "github.com/solo-io/envoy-gloo/go/config/filter/http/upstream_wait/v2"
-	_ "github.com/solo-io/envoy-gloo/go/config/transformer/aws_lambda/v2"
-	_ "github.com/solo-io/envoy-gloo/go/type/streaming"
 )
