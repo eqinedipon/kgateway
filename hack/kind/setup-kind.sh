@@ -13,7 +13,7 @@ CLUSTER_NODE_VERSION="${CLUSTER_NODE_VERSION:-v1.35.0@sha256:452d707d4862f525302
 # The version used to tag images
 VERSION="${VERSION:-v1.0.0-ci1}"
 # Skip building docker images if we are testing a released version
-SKIP_DOCKER="${SKIP_DOCKER:-false}"
+SKIP_DOCKER="${SKIP_DOCKER:-true}"
 # Stop after creating the kind cluster
 JUST_KIND="${JUST_KIND:-false}"
 # The version of the k8s gateway api conformance tests to run.
@@ -78,6 +78,7 @@ function create_and_setup() {
 # This config is roughly based on: https://kind.sigs.k8s.io/docs/user/ingress/
 create_and_setup
 
+echo $SKIP_DOCKER
 if [[ $SKIP_DOCKER == 'true' ]]; then
   # TODO(tim): refactor the Makefile & CI scripts so we're loading local
   # charts to real helm repos, and then we can remove this block.

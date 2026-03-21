@@ -12,6 +12,10 @@ images=(
   "extproc-server:0.0.1"
 )
 
+for file in `ls docker-images/`; do
+  docker load -i $file
+done
+
 for img in "${images[@]}"; do
   full_image="${DEVCONTAINER_IMAGE_REGISTRY}/${img}"
   docker pull "${full_image}" || \

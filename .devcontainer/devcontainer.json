@@ -2,8 +2,8 @@
   "name": "kgateway build-tools",
   // Official kgateway-dev container image
   // "image": "ghcr.io/kgateway-dev/devcontainer:kubeconeu-2026",
-  // npolshakova's branch testing image 
-  "image": "ghcr.io/npolshakova/devcontainer:kubeconeu-2026",
+  // npolshakova's branch testing image
+  "image": "docker.io/davidjumani/devcontainer:kubeconeu-2026",
   // Use this for building before the image is published to GHCR
   // "build": {
   //   "dockerfile": "../tools/build-tools/Dockerfile",
@@ -22,7 +22,7 @@
   },
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
-	"version": "24.0", 
+	"version": "24.0",
 	"moby": true
     },
     "ghcr.io/mpriscella/features/kind:1": {}

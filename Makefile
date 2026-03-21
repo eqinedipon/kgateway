@@ -792,6 +792,18 @@ metallb: ## Install the MetalLB load balancer
 .PHONY: deploy-kgateway
 deploy-kgateway: package-kgateway-charts deploy-kgateway-crd-chart deploy-kgateway-chart ## Deploy the kgateway chart and CRDs
 
+.PHONY: load-contribfest-images
+setup-contribfest: setup-base kind-load
+	$(KIND) load docker-image quay.io/metallb/controller:v0.13.7 --name $(CLUSTER_NAME)
+	$(KIND) load docker-image quay.io/metallb/speaker:v0.13.7 --name $(CLUSTER_NAME)
+	$(KIND) load docker-image registry.k8s.io/coredns/coredns:v1.12.2 --name $(CLUSTER_NAME)
+	$(KIND) load docker-image gcr.io/k8s-staging-gateway-api/echo-basic:v20240412-v1.0.0-394-g40c666fd --name $(CLUSTER_NAME)
+
+.PHONY: setup-contribfest
+setup-contribfest: load-contribfest-images deploy-kgateway
+	$(KIND) load docker-image $(IMAGE_REGISTRY)/$*:$(VERSION) --name $(CLUSTER_NAME)
+
+
 .PHONY: setup-base
 setup-base: kind-create gw-api-crds metallb ## Setup the base infrastructure (kind cluster, CRDs, and MetalLB)
 
