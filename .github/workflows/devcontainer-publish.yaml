@@ -47,13 +47,13 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build and push test images
-        env:
-          VERSION: v1.0.0-ci1
-        run: |
-          make kgateway-docker sds-docker envoy-wrapper-docker dummy-idp-docker extproc-server-docker
-          docker push "${{ env.IMAGE_REGISTRY }}/kgateway:${VERSION}"
-          docker push "${{ env.IMAGE_REGISTRY }}/sds:${VERSION}"
-          docker push "${{ env.IMAGE_REGISTRY }}/envoy-wrapper:${VERSION}"
-          docker push ${{ env.IMAGE_REGISTRY }}/dummy-idp:0.0.1
-          docker push ${{ env.IMAGE_REGISTRY }}/extproc-server:0.0.1
+      # - name: Build and push test images
+      #   env:
+      #     VERSION: v1.0.0-ci1
+      #   run: |
+      #     make kgateway-docker sds-docker envoy-wrapper-docker dummy-idp-docker extproc-server-docker
+      #     docker push "${{ env.IMAGE_REGISTRY }}/kgateway:${VERSION}"
+      #     docker push "${{ env.IMAGE_REGISTRY }}/sds:${VERSION}"
+      #     docker push "${{ env.IMAGE_REGISTRY }}/envoy-wrapper:${VERSION}"
+      #     docker push ${{ env.IMAGE_REGISTRY }}/dummy-idp:0.0.1
+      #     docker push ${{ env.IMAGE_REGISTRY }}/extproc-server:0.0.1
