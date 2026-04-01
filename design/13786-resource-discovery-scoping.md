@@ -4,474 +4,551 @@
 
 ## Background
 
-Today kgateway has a single discovery boundary for namespaced resources: `discoveryNamespaceSelectors`.
-That setting is parsed from `api/settings/settings.go`, converted into a dynamic namespace filter in
-`pkg/pluginsdk/collections/discovery.go`, and then applied uniformly to namespaced collections created in
+Today kgateway scopes namespaced discovery with a single outer boundary: `discoveryNamespaceSelectors`.
+That setting is parsed from `api/settings/settings.go`, turned into a dynamic namespace filter in
+`pkg/pluginsdk/collections/discovery.go`, and then applied broadly to namespaced collections in
 `pkg/pluginsdk/collections/collections.go` and `pkg/pluginsdk/collections/setup.go`.
 
-This model works well for route and backend discovery because operators usually want kgateway to discover
-`Gateway`, `HTTPRoute`, `GRPCRoute`, `Service`, and related policy resources from many workload namespaces.
-The same model is much less efficient for high-cardinality resources such as `Secret` and `ConfigMap`.
-In large clusters, kgateway ends up caching nearly every object of those types from every discovered
-namespace, even though only a small subset is ever referenced by gateway configuration.
+This is the right model for primary routing resources such as `Gateway`, `HTTPRoute`, `GRPCRoute`,
+`Service`, `Backend`, `GatewayExtension`, and policy CRDs. Operators usually want those resources to be
+discoverable from many workload namespaces.
 
-The result is avoidable memory pressure in the control plane. The issue report includes a production heap
-profile where `Secret` and `ConfigMap` objects account for most of the process heap.
+The same model is too expensive for high-cardinality secondary resources such as `Secret` and `ConfigMap`.
+Once a namespace is inside the discovery boundary, kgateway currently caches nearly every object of those
+types in that namespace, even though most are never referenced by gateway configuration.
+
+The issue report includes a production heap profile where `Secret` and `ConfigMap` objects dominate control
+plane memory. That is the problem this EP addresses.
+
+This proposal intentionally takes a different direction than label-driven opt-in discovery. Rather than
+asking operators to label resources that kgateway should discover, this design treats most `Secret` and
+`ConfigMap` objects as **derived dependencies** and discovers them from the references already present in
+Gateways, Routes, policies, backends, and extensions.
 
 ## Motivation
 
-Operators need a way to keep broad discovery for routing resources while tightening discovery for resource
-types that are expensive to cache and usually referenced explicitly.
+The strongest argument for reference-driven discovery is that gateway-relevant `Secret` and `ConfigMap`
+objects are usually not independent resources. They are inputs to already-discovered objects:
 
-The solution must preserve the current mental model that `discoveryNamespaceSelectors` defines the outer
-namespace boundary, and then add a second layer that controls how individual resource types are discovered
-inside that boundary.
+- a listener references a TLS secret
+- a backend policy references TLS material
+- a traffic policy references a secret, a selector, or a gateway extension
+- a gateway extension references a JWT key `ConfigMap`
+
+If kgateway can compute that dependency graph directly, it can reduce memory without asking operators to
+annotate individual resources and without widening discovery beyond what the configuration already needs.
 
 ### Goals
 
-- Reduce memory consumed by cached high-cardinality resources such as `Secret` and `ConfigMap`
-- Preserve current behavior for all existing installations by default
-- Provide a generic mechanism that applies to any namespaced resource type kgateway watches
-- Allow namespace-level overrides for control-plane or shared infrastructure namespaces
-- Allow resource-level inclusion or exclusion using a single well-known label
-- Push filtering to the API server when possible so memory savings come from smaller informer caches, not
-  only from dropping objects after they are received
-- Fit within the existing KRT and plugin-based collection architecture without changing translation semantics
+- Reduce memory consumed by cached `Secret` and `ConfigMap` objects
+- Preserve broad discovery for primary routing resources
+- Discover secondary resources automatically from existing references instead of requiring resource labels
+- Support direct references, selector-based references, and transitive references through intermediate
+  objects such as `GatewayExtension`
+- Fit the KRT architecture so claim recalculation follows normal dependency tracking
+- Keep current translation and `ReferenceGrant` semantics intact
+- Preserve backward compatibility by default
 
 ### Non-Goals
 
 - Replacing `discoveryNamespaceSelectors`
-- Changing how `ReferenceGrant` authorization works for cross-namespace references
-- Changing translator behavior for routes, policies, or xDS generation
-- Filtering cluster-scoped resources
-- Inferring all discoverable `Secret` and `ConfigMap` references on demand instead of watching them
-- Introducing resource-type-specific booleans such as `watchAllSecrets` or `watchAllConfigMaps`
+- Changing route, listener, backend, or xDS translation semantics
+- Changing `ReferenceGrant` authorization rules
+- Providing exact-reference discovery for every possible future plugin without plugin participation
+- Eliminating all fallbacks to broader discovery in pathological or opaque cases
+- Solving cluster-scoped resource discovery
 
 ## Implementation Details
 
 ### Proposed Model
 
-The design adds a second discovery layer beneath `discoveryNamespaceSelectors`.
+The model splits watched resources into two groups:
 
-1. `discoveryNamespaceSelectors` remains the outer namespace boundary.
-2. A new per-resource-type default decides whether a type is globally `opt-in` or `opt-out`.
-3. Namespace annotations can override the global mode for a specific resource type.
-4. A single resource label is interpreted according to the resolved mode.
+1. **Primary resources**: broadly watched inside `discoveryNamespaceSelectors`
+2. **Derived resources**: watched only when claimed by primary resources or by objects that were derived from
+   them
 
-The result is:
+For the first version, the main derived resource types are:
 
-- Route and backend resource types continue to use the current `opt-out` behavior by default
-- Expensive resource types such as `Secret` and `ConfigMap` can be switched to `opt-in`
-- Operators can still force full discovery in selected namespaces such as `kgateway-system`
+- core `Secret`
+- core `ConfigMap`
 
-### Configuration
+Primary resources remain broadly watched because they define intent and topology:
 
-Add a new settings field and Helm value:
+- namespaces
+- Gateways and route types
+- Services and backend CRDs
+- `ReferenceGrant`
+- policy CRDs
+- `GatewayExtension`
 
-```yaml
-discoveryResourceDefaults:
-  - group: ""
-    kind: Secret
-    mode: opt-in
-  - group: ""
-    kind: ConfigMap
-    mode: opt-in
+Derived resources are discovered through a graph of **discovery claims**.
+
+### Discovery Claims
+
+Introduce a new internal model:
+
+```go
+type DiscoveryClaim struct {
+    Resource schema.GroupKind
+    Namespace string
+
+    Exact    *types.NamespacedName
+    Selector *metav1.LabelSelector
+
+    // Why this claim exists. Used for dedupe, debugging, and metrics.
+    Owner ir.ObjectSource
+}
 ```
 
-The setting is represented internally as a list keyed by `GroupKind`:
+A claim means: "kgateway currently depends on this resource or set of resources."
 
-- `group`: Kubernetes API group, empty string for core resources
-- `kind`: resource kind
-- `mode`: one of `opt-in` or `opt-out`
+The first version supports two claim shapes:
 
-Resources that are not listed default to `opt-out`, which preserves current behavior.
-
-The controller exposes the setting through a new environment variable:
-
-```text
-KGW_DISCOVERY_RESOURCE_DEFAULTS
-```
-
-Its wire format should follow the existing pattern used for `KGW_DISCOVERY_NAMESPACE_SELECTORS`: Helm renders
-YAML, the Deployment injects JSON, and `api/settings/settings.go` parses the JSON into a typed structure.
-
-### Resource Label
-
-Add a single resource label:
-
-```text
-kgateway.dev/discovery
-```
-
-Supported values:
-
-- `"true"` -> explicitly include the resource
-- `"false"` -> explicitly exclude the resource
-
-Label interpretation depends on the resolved mode:
-
-- `opt-in`: only resources labeled `"true"` are included
-- `opt-out`: all resources are included unless labeled `"false"`
-
-For `opt-out` mode, kgateway should use an API-server label selector equivalent to:
-
-```text
-kgateway.dev/discovery!=false
-```
-
-For `opt-in` mode, kgateway should use:
-
-```text
-kgateway.dev/discovery=true
-```
-
-This allows API-server-side filtering for both modes.
-
-### Namespace Override
-
-Allow a namespace to override the global mode for a resource type.
-
-Recommended key format:
-
-```text
-kgateway.dev/discovery.<group>.<kind>
-```
+- **Exact claim** -> a single namespaced object by name
+- **Selector claim** -> all objects of a type in a namespace matching a selector
 
 Examples:
 
-```text
-kgateway.dev/discovery.core.Secret: opt-out
-kgateway.dev/discovery.core.ConfigMap: opt-in
-kgateway.dev/discovery.gateway.networking.k8s.io.HTTPRoute: opt-in
+- listener TLS certificate -> exact `Secret` claim
+- JWT local JWKS -> exact `ConfigMap` claim
+- API key auth `secretSelector` -> selector `Secret` claim
+
+### How Claims Are Produced
+
+Claims are produced close to the code that already understands each reference shape.
+
+#### Core Claim Producers
+
+Core code emits claims for references found in:
+
+- Gateway listener TLS configuration
+- backend TLS configuration
+- any other core translator path that directly references `Secret` or `ConfigMap`
+
+This keeps claim logic near the existing source-of-truth code paths such as
+`pkg/kgateway/translator/listener/gateway_listener_translator.go`,
+`pkg/kgateway/translator/sslutils/ssl_utils.go`, and backend-related policy handling.
+
+#### Plugin Claim Producers
+
+Plugins must explicitly contribute claims for any secondary resources they need.
+
+Add an optional plugin hook in the plugin SDK:
+
+```go
+type PolicyPlugin struct {
+    Policies krt.Collection[ir.PolicyWrapper]
+    DiscoveryClaims krt.Collection[DiscoveryClaim]
+    // ...
+}
+
+type BackendPlugin struct {
+    Backends krt.Collection[ir.BackendObjectIR]
+    DiscoveryClaims krt.Collection[DiscoveryClaim]
+    // ...
+}
 ```
 
-For the core API group, `core` is used as the canonical group token instead of an empty segment.
+This is the key design choice that makes reference-driven discovery practical. Instead of trying to
+introspect arbitrary plugin logic, kgateway asks plugins to declare the secondary resources they depend on.
 
-Invalid values are ignored and produce a warning log. In that case, kgateway falls back to the global default.
-Unknown group-kind keys are also ignored.
+That directly addresses one of the main downsides of this approach: extensibility.
 
-### Mode Resolution
+### Transitive Discovery
 
-For a namespaced resource of type `T` in namespace `N`:
+Some references are indirect:
 
-1. Start with the global default for `T` from `discoveryResourceDefaults`, or `opt-out` if unset.
-2. If namespace `N` has a valid override annotation for `T`, use the namespace value instead.
-3. Interpret the `kgateway.dev/discovery` label according to the resolved mode.
+- `TrafficPolicy` -> `GatewayExtension` -> JWT config -> `ConfigMap`
+- route or policy -> backend -> backend auth secret
 
-This can be modeled as:
+Reference-driven discovery must therefore compute a transitive closure, not just direct references.
 
-```mermaid
-flowchart TD
-    A[Resource type T] --> B[Global mode]
-    B --> C{Namespace override for T?}
-    C -->|Yes| D[Effective mode = namespace override]
-    C -->|No| E[Effective mode = global mode]
-    D --> F{Effective mode}
-    E --> F
-    F -->|opt-in| G[Include only label=true]
-    F -->|opt-out| H[Include unless label=false]
-```
-
-### Controller Runtime
-
-#### Resource Discovery Resolver
-
-Introduce a new resolver in the collections layer that combines:
-
-- global defaults from settings
-- namespace metadata from the existing unfiltered namespace collection
-- annotation parsing and validation
-
-The resolver exposes:
-
-- effective mode lookup for `GroupKind` + namespace
-- API-server label selector for a resource type and mode
-- callbacks when namespace overrides for a resource type change
-
-This resolver is separate from the current `discoveryNamespacesFilter`, but both are used together:
-
-- namespace filter decides whether a namespace is inside the overall discovery boundary
-- resource resolver decides how a resource type is discovered inside that boundary
-
-#### Scoped Informer Strategy
-
-The current model uses one informer per watched resource type, filtered only by namespace. That is not
-enough once resource-type behavior can vary by namespace.
-
-For each scoped namespaced resource type, kgateway should create:
-
-1. A base informer using the global mode
-2. Zero or more namespace-specific override informers for namespaces whose override differs from the global mode
-3. A lightweight in-memory evaluator that enforces the final effective-mode decision before objects enter the
-   downstream collection
-
-The base informer is where the main memory reduction happens:
-
-- global `opt-in` -> cluster-wide informer with `kgateway.dev/discovery=true`
-- global `opt-out` -> cluster-wide informer with `kgateway.dev/discovery!=false`
-
-Namespace override informers fill the gaps that cannot be expressed with a single cluster-wide watch. The
-most important case is a globally `opt-in` resource type with a small number of `opt-out` namespaces, such as
-`kgateway-system`.
-
+The design handles this by producing claims from KRT collections that already depend on intermediate objects.
 For example:
 
+- a `TrafficPolicy` claim collection can depend on both `TrafficPolicy` and `GatewayExtension`
+- when the extension changes, the claim collection recomputes automatically
+- if the extension starts or stops referencing a `ConfigMap`, the corresponding claim is added or removed
+
+This lets KRT handle the dependency invalidation rather than introducing a separate graph engine outside the
+existing runtime model.
+
 ```mermaid
 flowchart TD
-    A[Selected namespaces from discoveryNamespaceSelectors] --> B[Base informer for Secret]
-    B -->|global opt-in| C[label selector: kgateway.dev/discovery=true]
-    A --> D[Override informer for kgateway-system]
-    D -->|namespace opt-out| E[label selector: kgateway.dev/discovery!=false]
-    C --> F[Merge and de-duplicate]
-    E --> F
-    F --> G[Effective mode evaluator]
-    G --> H[Secret collection]
+    A[TrafficPolicy] --> B[Policy claim collection]
+    E[GatewayExtension] --> B
+    B --> C[ConfigMap claim]
+    C --> D[ConfigMap discovery manager]
 ```
 
-This design intentionally optimizes the primary use case from the issue:
+### Claim Materialization
 
-- globally `opt-in` for `Secret` and `ConfigMap`
-- a small number of opt-out namespaces that must be fully watched
+Claims do not populate the cache by themselves. They are consumed by a new component in the collections
+layer: the **derived resource discovery manager**.
 
-#### Correctness vs. Memory Trade-Off
+Responsibilities:
 
-There is one important trade-off. If a resource type is globally `opt-out` and a namespace overrides it to
-`opt-in`, the base informer still fetches unlabeled objects from that namespace. The in-memory evaluator can
-drop them from downstream collections, so correctness is preserved, but memory is not reduced for that
-namespace.
+- union and dedupe claims from all core and plugin producers
+- create narrow watches or point lookups for claimed resources
+- publish merged `Secret` and `ConfigMap` collections to existing indices
+- tear down unused watches when claims disappear
 
-This is acceptable because:
+### Materialization Strategy
 
-- the default and recommended memory-saving rollout is global `opt-in` for selected types
-- namespace `opt-in` on top of global `opt-out` is expected to be rare
-- the design still provides correct behavior for both directions of override
+This is where the major downsides of reference-driven discovery must be handled carefully.
 
-If future usage shows that the reverse pattern matters operationally, kgateway can extend the implementation
-to partition watches more aggressively.
+Kubernetes does not provide a native "watch this arbitrary set of names" API. A naive implementation would
+either:
 
-### Plugin
+- open one watch per object, which can overwhelm the API server
+- or fall back to watching the full namespace, which gives back much of the unwanted memory usage
 
-The mechanism must be generic across all watched namespaced resources, including plugin-owned collections.
+This EP proposes an adaptive strategy with three modes.
 
-To make that practical, kgateway should add a reusable helper in `pkg/pluginsdk/collections` for creating
-resource-scoped informers and collections. Core collections and plugin collections should migrate from direct
-`kclient.NewFiltered` calls that only apply `ObjectFilter` to a helper that also registers the resource type
-with the resolver.
+#### Mode 1: Exact Object Watch
 
-This keeps the configuration model generic while avoiding resource-type-specific code paths in each plugin.
+For a small number of exact claims in a namespace, create one narrow client per object using
+`metadata.name=<name>` field selection.
 
-Initial rollout should cover at least:
+Use when:
 
-- core `Secret` and `ConfigMap` collections
-- route and backend collections created in `pkg/pluginsdk/collections/setup.go`
-- plugin collections that currently use `commoncol.Client.ObjectFilter()`
+- the resource is claimed by exact name
+- claim count for that `(GroupKind, Namespace)` stays below a threshold
 
-Cluster-scoped resources remain unchanged.
+Pros:
 
-### Controllers
+- best memory profile
+- immediate updates when the object changes
 
-No new top-level controller is required. The change lives in the collection and informer setup path.
+Cons:
 
-However, the namespace collection becomes even more important because it now drives:
+- many watch streams if claim count grows
 
-- namespace membership for discovery
-- namespace-level discovery mode overrides
-- dynamic creation and teardown of override informers
+#### Mode 2: Selector Watch
 
-The implementation should therefore:
+For selector claims, create a namespaced watch with the selector pushed to the API server.
 
-- reuse the existing unfiltered namespace collection
-- reconcile override informer membership when namespace annotations change
-- avoid restarting unaffected informers when unrelated namespace labels or annotations change
+Use when:
+
+- the claim is selector-based, such as `TrafficPolicy` API key auth selecting secrets by label
+
+Pros:
+
+- selector semantics stay correct as matching objects are created, updated, or deleted
+- efficient when selectors are selective
+
+Cons:
+
+- duplicate selectors can create redundant watches unless normalized and deduped
+- less predictable than exact claims
+
+#### Mode 3: Namespace Fallback Watch
+
+When exact or selector claims in a namespace become too numerous, or when a plugin cannot precisely express
+its dependency set, escalate to a broader namespaced watch for that resource type and filter in memory.
+
+Use when:
+
+- exact watch count crosses a configurable threshold
+- too many selector watches would be more expensive than one namespace watch
+- a plugin or well-known subsystem explicitly requests fallback
+
+Pros:
+
+- bounds watch-stream explosion
+- preserves correctness in high-density namespaces
+
+Cons:
+
+- weaker memory savings in that namespace
+
+This is an intentional safety valve. Reference-driven discovery is attractive because it can be much tighter
+than namespace-wide informer scoping, but the system must remain operational even when references become dense
+or highly dynamic.
+
+### Adaptive Escalation
+
+The discovery manager maintains per `(GroupKind, Namespace)` state:
+
+- exact claim count
+- unique selector count
+- whether the namespace is already in fallback mode
+
+Once a threshold is crossed, the manager promotes that namespace and resource type to fallback mode and
+reuses one shared watch.
+
+Example:
+
+```mermaid
+flowchart TD
+    A[Claims for Secret in team-a] --> B{Count below threshold?}
+    B -->|Yes| C[Exact object watches]
+    B -->|No| D[Namespace fallback watch]
+    E[Selector claims for Secret in team-a] --> F{Selector density acceptable?}
+    F -->|Yes| G[Selector watches]
+    F -->|No| D
+```
+
+This is the primary mitigation for API-server pressure.
+
+### Missing Resources and Eventual Consistency
+
+Claims must persist even when the target object does not currently exist.
+
+Example:
+
+- a route references a secret
+- the secret has not been created yet
+- kgateway should remain aware of that dependency and react when the secret appears later
+
+Therefore:
+
+- missing exact claims still create a tracked dependency entry
+- the discovery manager retries lookup and maintains a watch or resync path
+- removing the parent reference removes the tracked dependency
+
+To avoid flapping:
+
+- claim removal should use a short grace period before tearing down watches
+- missing resources should be rechecked with backoff
+- a periodic full recomputation should exist as a correctness safety net
+
+This directly addresses another major downside of the approach: race conditions between reference updates and
+resource creation.
+
+### Authorization and ReferenceGrant
+
+Discovery and authorization remain separate concerns.
+
+Rules:
+
+- same-namespace references can always produce claims
+- cross-namespace references can produce claims once the source object, target reference, and any required
+  `ReferenceGrant` allow the dependency
+- if a `ReferenceGrant` is added later, the claim producer recomputes and activates the claim
+
+This preserves current read-time semantics in `SecretIndex` and `ConfigMapIndex` while avoiding premature
+caching of cross-namespace objects that are not actually authorized.
+
+### Well-Known and Opaque Dependencies
+
+Some dependencies are not naturally expressed by user-facing references.
+
+Example:
+
+- the OAuth2 HMAC secret in `pkg/kgateway/wellknown/constants.go`
+
+The design therefore supports **static seed claims** registered by kgateway itself.
+
+This is also the escape hatch for opaque subsystems where an exact dependency set cannot be computed from
+references alone.
+
+Static seed claims should be used sparingly, but they are necessary to keep the system robust.
+
+### Configuration
+
+The feature should be introduced behind an explicit mode switch. Default behavior remains unchanged.
+
+Suggested settings:
+
+```yaml
+resourceDiscovery:
+  mode: legacy
+  derivedResourceTypes:
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: ConfigMap
+  maxExactWatchesPerNamespace: 32
+  maxSelectorWatchesPerNamespace: 16
+  staticSeedNamespaces:
+    - kgateway-system
+```
+
+Modes:
+
+- `legacy` -> current namespace-scoped informer behavior
+- `referenced` -> use claim-driven discovery for configured derived resource types
+
+Purpose of the extra knobs:
+
+- `derivedResourceTypes` limits rollout scope
+- `maxExactWatchesPerNamespace` bounds API-server pressure
+- `maxSelectorWatchesPerNamespace` bounds selector-watch explosion
+- `staticSeedNamespaces` provides a conservative operational safety net
+
+This makes rollout safer and explicitly acknowledges the downsides of the design rather than pretending they do
+not exist.
 
 ### Deployer
 
-The Helm chart needs three updates:
+The Helm chart needs updates for the new settings in:
 
-1. Add `discoveryResourceDefaults` to `install/helm/kgateway/values.yaml`
-2. Inject `KGW_DISCOVERY_RESOURCE_DEFAULTS` into `install/helm/kgateway/templates/deployment.yaml`
-3. Document the new setting next to `discoveryNamespaceSelectors`
+- `install/helm/kgateway/values.yaml`
+- `install/helm/kgateway/templates/deployment.yaml`
 
-No RBAC changes are expected because kgateway already has the required `get`, `list`, and `watch` permissions
-for the relevant resource types and already watches namespaces.
+No RBAC changes are expected because kgateway already has `get`, `list`, and `watch` access for the relevant
+resource types and namespaces.
 
-### Translator and Proxy Syncer
+### Translator and Existing Interfaces
 
-No translator or xDS protocol changes are required.
+The translator should keep using the same high-level interfaces:
 
-Downstream components should continue to consume `Secret`, `ConfigMap`, route, backend, and policy collections
-exactly as they do today. The discovery mechanism changes which objects are present in those collections, but
-not the collection interfaces themselves.
+- `SecretIndex`
+- `ConfigMapIndex`
+- query helpers such as `GetSecretForRef()` and `GetConfigMapForRef()`
 
-Reference resolution behavior also remains unchanged:
+The change is in how those collections are populated, not how translation consumes them.
 
-- same-namespace lookups continue to work if the referenced object is discovered
-- cross-namespace access still requires `ReferenceGrant` where applicable
+That keeps the rest of the system stable and limits blast radius.
 
-### Reporting
+### Plugin Rollout Strategy
 
-The feature should emit clear operator signals:
+Reference-driven discovery will fail if plugins keep resolving secrets or configmaps without emitting claims.
 
-- warning log when a namespace annotation has an invalid mode
-- warning log when a namespace annotation references an unknown or unsupported resource type
-- info or debug log when override informers are created or removed
+So rollout should be staged:
 
-It should also expose metrics so operators can understand whether discovery scoping is behaving as intended.
-Suggested metrics:
+1. add claim plumbing and keep `legacy` mode as default
+2. implement core claim producers
+3. implement claim producers for built-in plugins that reference `Secret` or `ConfigMap`
+4. add test coverage that any built-in plugin using `SecretIndex` or `ConfigMapIndex` in referenced mode also
+   contributes claims
 
-- number of configured resource-type defaults
-- number of active override informers by resource type
-- number of namespaces with valid overrides
-- number of invalid override annotations seen
+This is the other major mitigation for extensibility risk.
 
-The first version can start with logs and a minimal invalid-annotation counter if adding the full metric set is
-too much scope.
+### Observability
 
-### Example Rollout
+This feature needs strong observability because failures will often look like "resource unexpectedly not
+discovered."
 
-```yaml
-discoveryNamespaceSelectors:
-  - matchLabels:
-      kgateway: discovered
+Required signals:
 
-discoveryResourceDefaults:
-  - group: ""
-    kind: Secret
-    mode: opt-in
-  - group: ""
-    kind: ConfigMap
-    mode: opt-in
-```
+- metric for active exact claims by resource type
+- metric for active selector claims by resource type
+- metric for namespaces promoted to fallback mode
+- metric for missing claimed objects
+- metric for claims suppressed due to missing `ReferenceGrant`
+- debug endpoint or log dump showing why a particular object is currently claimed
 
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: kgateway-system
-  annotations:
-    kgateway.dev/discovery.core.Secret: opt-out
-    kgateway.dev/discovery.core.ConfigMap: opt-out
-```
+Recommended logs:
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: app-cert
-  namespace: team-a
-  labels:
-    kgateway.dev/discovery: "true"
-```
+- when a namespace is promoted to fallback mode
+- when a plugin in referenced mode resolves a secondary resource without a corresponding claim
+- when claim churn crosses a warning threshold
 
-Outcome:
+### Backward Compatibility
 
-- all selected namespaces still contribute routes, services, and policies by default
-- `kgateway-system` still contributes all `Secret` and `ConfigMap` objects
-- workload namespaces only contribute explicitly labeled `Secret` and `ConfigMap` objects
+Backward compatibility is preserved by default because the feature ships behind `resourceDiscovery.mode=legacy`.
 
-### Backwards Compatibility
+When `referenced` mode is enabled:
 
-Backwards compatibility is preserved by default:
+- primary-resource discovery remains bounded by `discoveryNamespaceSelectors`
+- translation semantics remain the same
+- memory behavior changes only for configured derived resource types
 
-- `discoveryNamespaceSelectors` keeps its current meaning
-- unconfigured `discoveryResourceDefaults` means all types are `opt-out`
-- unlabeled resources remain discoverable unless their type is explicitly switched to `opt-in`
+The biggest compatibility risk is incomplete claim coverage. That is why the mode should remain opt-in until
+built-in plugins and core paths are proven complete.
 
-This means upgrading kgateway without changing values produces the same behavior as today.
+### Example Walkthrough
+
+Assume:
+
+- `HTTPRoute` and `TrafficPolicy` in namespace `team-a` are inside `discoveryNamespaceSelectors`
+- the route terminates TLS with `team-a/app-cert`
+- the traffic policy references `GatewayExtension team-a/jwt-ext`
+- that extension references `ConfigMap team-a/jwt-keys`
+
+Flow:
+
+1. kgateway broadly watches the route, policy, and extension
+2. claim producers emit:
+   - exact `Secret team-a/app-cert`
+   - exact `ConfigMap team-a/jwt-keys`
+3. the discovery manager materializes narrow discovery for those objects
+4. `SecretIndex` and `ConfigMapIndex` expose them to translation
+5. if `jwt-keys` is deleted, the narrow watch signals the change and translation recomputes
+
+No labels are required on the secondary resources.
 
 ### Test Plan
 
 #### Unit Tests
 
-- settings parsing for `discoveryResourceDefaults`
-- validation of duplicate or malformed `GroupKind` entries
-- namespace annotation parsing and fallback behavior
-- effective mode resolution for all combinations of global mode, namespace override, and resource label
-- informer reconciliation logic when namespace labels or annotations change
-- merge and de-duplication behavior when base and override informers see the same object
+- claim generation for direct secret and configmap references
+- claim generation for selector-based references
+- transitive claim generation through `GatewayExtension`
+- claim dedupe across multiple owners
+- exact-watch to namespace-fallback promotion logic
+- missing-resource retry and grace-period teardown logic
+- claim activation and deactivation when `ReferenceGrant` changes
 
-#### Integration and Collection Tests
+#### Collection and Integration Tests
 
-- `Secret` and `ConfigMap` collection tests showing API-server label selector selection for `opt-in` and
-  `opt-out`
-- dynamic namespace update tests showing override informer creation and teardown
-- plugin collection tests confirming the helper works for plugin-owned informers
+- referenced mode populates `SecretIndex` and `ConfigMapIndex` only with claimed resources
+- selector claims react correctly when matching objects are created or relabeled
+- namespace fallback mode preserves correctness after threshold promotion
+- static seed claims keep well-known control-plane resources available
+
+#### Plugin Tests
+
+- built-in plugins that consume `SecretIndex` or `ConfigMapIndex` also produce claims
+- referenced mode catches accidental omissions in built-in plugin coverage
 
 #### Translator Tests
 
-Reuse the existing multi-namespace discovery translator coverage and add scenarios where:
+Reuse existing multi-namespace translator scenarios and add cases where:
 
-- a referenced `Secret` is absent because it is not labeled in `opt-in` mode
-- the same `Secret` becomes discoverable after the label is added
-- a control-plane namespace override keeps control-plane `Secret` and `ConfigMap` discovery unchanged
+- a referenced secret is absent and later appears
+- a gateway extension changes its transitive configmap dependency
+- cross-namespace references become active only after `ReferenceGrant` is added
 
 #### End-to-End Tests
 
-Add an e2e scenario that:
-
-1. deploys kgateway with `Secret` and `ConfigMap` set to global `opt-in`
-2. verifies that a route depending on an unlabeled workload `Secret` or `ConfigMap` is unresolved
-3. labels the object and verifies the route becomes accepted
-4. verifies that unlabeled control-plane resources in the override namespace continue to work
+- enable referenced mode for `Secret` and `ConfigMap`
+- verify that unlabeled but referenced resources are discovered automatically
+- verify that unrelated secrets and configmaps in the same namespace are not cached in exact-watch mode
+- verify fallback promotion behavior in a namespace with many claims
 
 ## Alternatives
 
-### Infer Discoverable Resources from References
+### Label-Driven Opt-In Discovery
 
-Instead of watching `Secret` and `ConfigMap` broadly, kgateway could attempt to compute the exact referenced
-objects from `Gateway`, `HTTPRoute`, and policy resources and then fetch only those objects.
-
-Pros:
-
-- potentially the lowest steady-state memory footprint
-- avoids asking operators to label referenced objects
-
-Cons:
-
-- much more complex than informer scoping
-- hard to make generic across plugins and future resource types
-- many references are indirect, selector-based, or introduced by plugins
-- risks race conditions and degraded responsiveness if the controller must continually materialize ad hoc
-  watches or point reads
-
-This is a reasonable long-term direction to revisit, but it should not block a simpler and more general
-solution now.
-
-### Resource-Type-Specific Booleans
-
-Add flags such as `watchSecretsOptIn` and `watchConfigMapsOptIn`.
+Use a global mode plus namespace overrides and a `kgateway.dev/discovery` label on individual resources.
 
 Pros:
 
-- simple UX for the first use case
+- conceptually simpler
+- easy to push most filtering to the API server
+- generic across plugins because it does not need plugin participation
 
 Cons:
 
-- does not scale to all watched resource types
-- adds a one-off knob every time memory pressure appears for another resource type
-- pushes complexity into product configuration rather than the discovery system
+- requires operators to label referenced resources correctly
+- shifts correctness burden from configuration authors to cluster operators
+- still watches resources based on labels rather than true dependency structure
 
-This does not satisfy the generic-mechanism requirement.
+This EP intentionally prefers reference-driven discovery because it aligns better with the actual ownership
+model of gateway dependencies.
 
-### Namespace-Only Filtering
+### Keep Namespace-Only Filtering
 
-Keep the current namespace filter and ask operators to move all gateway-referenced `Secret` and `ConfigMap`
-objects into a small set of shared namespaces.
+Continue relying only on `discoveryNamespaceSelectors`.
 
 Pros:
 
-- no controller changes required
+- no new complexity
 
 Cons:
 
-- not workable in many multi-tenant clusters
-- forces application and platform teams to reorganize resources around controller limitations
-- does not solve the need to discover routes and services broadly while scoping secrets narrowly
+- does not address the memory problem
 
 ## Open Questions
 
-- Should namespace override keys use the proposed `group.kind` format, or should they include version for
-  readability even though the implementation resolves by `GroupKind`?
-- How much of the plugin surface should migrate in the first release versus a follow-up cleanup?
-- Do we want a user-facing status condition or only logs and metrics when a referenced resource is filtered
-  out by discovery scoping?
+- Should claim production be exposed as a first-class plugin API, or should it be derived from richer IR types?
+- Do we support selector claims in the first release, or start with exact-name claims and keep selector-based
+  features on legacy discovery until the selector path is proven?
+- What should the exact escalation thresholds be before switching from exact or selector watches to namespace
+  fallback mode?
+- Do we need a dedicated admin debug view for "why is this object claimed?" before enabling referenced mode
+  by default?
