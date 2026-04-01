@@ -18,7 +18,8 @@ Once a namespace is inside the discovery boundary, kgateway currently caches nea
 types in that namespace, even though most are never referenced by gateway configuration.
 
 The issue report includes a production heap profile where `Secret` and `ConfigMap` objects dominate control
-plane memory. That is the problem this EP addresses.
+plane memory. Reviewers should use the linked issue as the source of the concrete memory data and heap
+profiling context. That is the problem this EP addresses.
 
 This proposal intentionally takes a different direction than label-driven opt-in discovery. Rather than
 asking operators to label resources that kgateway should discover, this design treats most `Secret` and
@@ -134,7 +135,7 @@ This keeps claim logic near the existing source-of-truth code paths such as
 
 Plugins must explicitly contribute claims for any secondary resources they need.
 
-Add an optional plugin hook in the plugin SDK:
+Add a first-class plugin hook in the plugin SDK:
 
 ```go
 type PolicyPlugin struct {
@@ -150,7 +151,8 @@ type BackendPlugin struct {
 }
 ```
 
-This is the key design choice that makes reference-driven discovery practical. Instead of trying to
+This is the recommended phase-1 decision and should not remain unresolved during implementation. It is the
+key design choice that makes reference-driven discovery practical. Instead of trying to
 introspect arbitrary plugin logic, kgateway asks plugins to declare the secondary resources they depend on.
 
 That directly addresses one of the main downsides of this approach: extensibility.
@@ -208,8 +210,10 @@ This EP proposes an adaptive strategy with three modes.
 
 #### Mode 1: Exact Object Watch
 
-For a small number of exact claims in a namespace, create one narrow client per object using
-`metadata.name=<name>` field selection.
+For a small number of exact claims in a namespace, create one narrow client per object using a
+`metadata.name=<object-name>` field selector. This is intentionally one watch per claimed name, not one watch for an
+arbitrary name set, because Kubernetes field selectors support equality on `metadata.name` but do not support
+an OR-style watch over many specific object names in a single request.
 
 Use when:
 
@@ -337,7 +341,8 @@ Some dependencies are not naturally expressed by user-facing references.
 
 Example:
 
-- the OAuth2 HMAC secret in `pkg/kgateway/wellknown/constants.go`
+- the OAuth2 HMAC secret exposed as `wellknown.OAuth2HMACSecret` in
+  `pkg/kgateway/wellknown/constants.go`
 
 The design therefore supports **static seed claims** registered by kgateway itself.
 
@@ -380,6 +385,12 @@ Purpose of the extra knobs:
 
 This makes rollout safer and explicitly acknowledges the downsides of the design rather than pretending they do
 not exist.
+
+The values `32` and `16` are initial starting points, not asserted optimums. They are intentionally
+conservative budgets: large enough to keep sparse namespaces on narrow watches, but low enough that a
+high-density namespace promotes before the controller opens an excessive number of watch streams. They should
+still be tuned using scale and API server load testing before referenced mode is enabled beyond experimental
+rollout.
 
 ### Deployer
 
@@ -545,7 +556,6 @@ Cons:
 
 ## Open Questions
 
-- Should claim production be exposed as a first-class plugin API, or should it be derived from richer IR types?
 - Do we support selector claims in the first release, or start with exact-name claims and keep selector-based
   features on legacy discovery until the selector path is proven?
 - What should the exact escalation thresholds be before switching from exact or selector watches to namespace
