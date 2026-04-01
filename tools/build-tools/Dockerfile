@@ -132,6 +132,21 @@ RUN set -eux; \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain "${RUST_VERSION}" --profile minimal --component rustfmt --component clippy; \
     ln -s "${CARGO_HOME}/bin/"* /usr/local/bin/
 
+# Prime the devcontainer's Go module cache during image build.
+# `make run` would require a live Docker daemon, a kind cluster, and kubectl/helm access,
+# so only the dependency download subset is done here.
+COPY Makefile /tmp/kgateway/Makefile
+COPY go.mod go.sum /tmp/kgateway/
+COPY hack/utils/applier/go.mod hack/utils/applier/go.sum /tmp/kgateway/hack/utils/applier/
+COPY tools/go.mod tools/go.sum /tmp/kgateway/tools/
+COPY test/e2e/defaults/extproc/go.mod test/e2e/defaults/extproc/go.sum /tmp/kgateway/test/e2e/defaults/extproc/
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/gocache,sharing=locked \
+    set -eux; \
+    cd /tmp/kgateway; \
+    make mod-download; \
+    rm -rf /tmp/kgateway
+
 # Install su-exec (like Istio: small, reliable privilege drop for entrypoint)
 RUN set -eux; \
     curl -fsSL -o "/tmp/su-exec.tgz" "https://github.com/NobodyXu/su-exec/archive/refs/tags/v${SU_EXEC_VERSION}.tar.gz"; \
@@ -159,5 +174,4 @@ RUN mkdir -p /go /gocache /gobin \
 WORKDIR /
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
 CMD ["bash"]
-
 
