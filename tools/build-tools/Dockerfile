@@ -132,9 +132,8 @@ RUN set -eux; \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain "${RUST_VERSION}" --profile minimal --component rustfmt --component clippy; \
     ln -s "${CARGO_HOME}/bin/"* /usr/local/bin/
 
-# Prime the devcontainer's Go module cache during image build.
-# `make run` would require a live Docker daemon, a kind cluster, and kubectl/helm access,
-# so only the dependency download subset is done here.
+# Prime the devcontainer's Go module cache during image build
+# by downloading the repository's Go dependencies.
 COPY Makefile /tmp/kgateway/Makefile
 COPY go.mod go.sum /tmp/kgateway/
 COPY hack/utils/applier/go.mod hack/utils/applier/go.sum /tmp/kgateway/hack/utils/applier/
@@ -174,4 +173,3 @@ RUN mkdir -p /go /gocache /gobin \
 WORKDIR /
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
 CMD ["bash"]
-
