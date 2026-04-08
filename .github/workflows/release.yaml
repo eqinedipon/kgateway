@@ -176,12 +176,14 @@ jobs:
           path: _output
 
       - name: Run goreleaser
-        run: make release
+        uses: goreleaser/goreleaser-action@5b52c0436ac940233d7f8c62b681052bcc16cffb # v6.0.2
+        with:
+          version: v2.13.2
+          args: release ${{ needs.setup.outputs.goreleaser_args }} --timeout 60m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.setup.outputs.version }}
           IMAGE_REGISTRY: ${{ env.IMAGE_REGISTRY }}
-          GORELEASER_ARGS: ${{ needs.setup.outputs.goreleaser_args }}
           GORELEASER_CURRENT_TAG: ${{ needs.setup.outputs.version }}
           GORELEASER_DISABLE_RELEASE: ${{ env.GORELEASER_DISABLE_RELEASE }}
 
