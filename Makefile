@@ -738,6 +738,7 @@ lint-kgateway-charts: ## Lint the kgateway charts
 GORELEASER_ARGS ?= --snapshot --clean
 GORELEASER_TIMEOUT ?= 60m
 GORELEASER_CURRENT_TAG ?= $(VERSION)
+# Allow overriding the goreleaser binary path for local release workflows.
 GORELEASER ?= goreleaser
 
 .PHONY: release

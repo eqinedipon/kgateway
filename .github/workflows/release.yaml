@@ -178,6 +178,7 @@ jobs:
       - name: Run goreleaser
         uses: goreleaser/goreleaser-action@5b52c0436ac940233d7f8c62b681052bcc16cffb # v6.0.2
         with:
+          # Match the previously pinned `go tool -modfile=tools/go.mod goreleaser` version.
           version: v2.13.2
           args: release ${{ needs.setup.outputs.goreleaser_args }} --timeout 60m
         env:
