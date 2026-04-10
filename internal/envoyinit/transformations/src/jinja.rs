@@ -1,7 +1,6 @@
 use crate::BodyParseBehavior;
 use crate::LocalTransform;
 use crate::LocalTransformationConfig;
-use crate::MetadataValuePair;
 use crate::NameValuePair;
 use crate::TransformationError;
 use crate::TransformationOps;
