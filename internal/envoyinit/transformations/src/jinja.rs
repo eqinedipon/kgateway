@@ -513,26 +513,22 @@ pub fn transform_request<T: TransformationOps>(
         )?;
     }
 
-    for MetadataValuePair {
-        namespace,
-        key,
-        value,
-    } in &transform.dynamic_metadata
-    {
-        if namespace.is_empty() || key.is_empty() || value.is_empty() {
+    for (i, meta) in transform.dynamic_metadata.iter().enumerate() {
+        if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
             continue;
         }
-        let template_key = format!("{}/{}", namespace, key);
-        let rendered = match render(env, &ctx, &template_key, value, parsed_body_as_json) {
-            Ok(s) => Some(s),
-            Err(err) => {
-                errors.push(err);
-                None
-            }
-        };
+        let template_key = format!("request.dynamicMetadata[{}]", i);
+        let rendered = render_or_abort(
+            env,
+            &ctx,
+            &template_key,
+            &meta.value,
+            parsed_body_as_json,
+            &mut errors,
+        )?;
         if let Some(v) = rendered.as_deref() {
             if !v.is_empty() {
-                ops.set_dynamic_metadata_string(namespace, key, v);
+                ops.set_dynamic_metadata_string(&meta.namespace, &meta.key, v);
             }
         }
     }
@@ -626,26 +622,22 @@ pub fn transform_response<T: TransformationOps>(
         )?;
     }
 
-    for MetadataValuePair {
-        namespace,
-        key,
-        value,
-    } in &transform.dynamic_metadata
-    {
-        if namespace.is_empty() || key.is_empty() || value.is_empty() {
+    for (i, meta) in transform.dynamic_metadata.iter().enumerate() {
+        if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
             continue;
         }
-        let template_key = format!("{}/{}", namespace, key);
-        let rendered = match render(env, &ctx, &template_key, value, parsed_body_as_json) {
-            Ok(s) => Some(s),
-            Err(err) => {
-                errors.push(err);
-                None
-            }
-        };
+        let template_key = format!("response.dynamicMetadata[{}]", i);
+        let rendered = render_or_abort(
+            env,
+            &ctx,
+            &template_key,
+            &meta.value,
+            parsed_body_as_json,
+            &mut errors,
+        )?;
         if let Some(v) = rendered.as_deref() {
             if !v.is_empty() {
-                ops.set_dynamic_metadata_string(namespace, key, v);
+                ops.set_dynamic_metadata_string(&meta.namespace, &meta.key, v);
             }
         }
     }
@@ -675,12 +667,12 @@ pub fn create_env_with_templates(
                 env.add_template_owned(REQUEST_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
         }
-        for meta in &request.dynamic_metadata {
-            if meta.value.is_empty() {
+        for (i, meta) in request.dynamic_metadata.iter().enumerate() {
+            if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
                 continue;
             }
             env.add_template_owned(
-                format!("{}/{}", meta.namespace, meta.key),
+                format!("request.dynamicMetadata[{}]", i),
                 meta.value.clone(),
             )?;
         }
@@ -703,12 +695,12 @@ pub fn create_env_with_templates(
                 env.add_template_owned(RESPONSE_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
         }
-        for meta in &response.dynamic_metadata {
-            if meta.value.is_empty() {
+        for (i, meta) in response.dynamic_metadata.iter().enumerate() {
+            if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
                 continue;
             }
             env.add_template_owned(
-                format!("{}/{}", meta.namespace, meta.key),
+                format!("response.dynamicMetadata[{}]", i),
                 meta.value.clone(),
             )?;
         }

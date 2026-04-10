@@ -12,12 +12,12 @@ spec:
     request:
       dynamicMetadata:
       - namespace: access.logs
-        key: request.metadata
+        key: request_metadata
         value: access.logs.request.metadata.value
     response:
       dynamicMetadata:
       - namespace: access.logs
-        key: response.metadata
+        key: response_metadata
         value: access.logs.response.metadata.value
 ---
 apiVersion: gateway.kgateway.dev/v1alpha1
@@ -50,5 +50,5 @@ spec:
           authority: "%REQ(:AUTHORITY)%"
           backendHost: "%UPSTREAM_HOST%"
           backendCluster: "%UPSTREAM_CLUSTER%"
-          transformation_request_metadata: "%DYNAMIC_METADATA(access.logs:request.metadata)%"
-          transformation_response_metadata: "%DYNAMIC_METADATA(access.logs:response.metadata)%"
+          transformation_request_metadata: "%DYNAMIC_METADATA(access.logs:request_metadata)%"
+          transformation_response_metadata: "%DYNAMIC_METADATA(access.logs:response_metadata)%"

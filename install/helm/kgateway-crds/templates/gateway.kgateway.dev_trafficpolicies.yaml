@@ -2034,11 +2034,6 @@ spec:
                         maxItems: 16
                         type: array
                         x-kubernetes-list-type: atomic
-                        x-kubernetes-validations:
-                        - message: dynamicMetadata entries must have unique namespace/key
-                            combinations
-                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
-                            && m1.key == m2.key))
                       remove:
                         description: Remove is a list of header names to remove from
                           the request/response.
@@ -2152,11 +2147,6 @@ spec:
                         maxItems: 16
                         type: array
                         x-kubernetes-list-type: atomic
-                        x-kubernetes-validations:
-                        - message: dynamicMetadata entries must have unique namespace/key
-                            combinations
-                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
-                            && m1.key == m2.key))
                       remove:
                         description: Remove is a list of header names to remove from
                           the request/response.
