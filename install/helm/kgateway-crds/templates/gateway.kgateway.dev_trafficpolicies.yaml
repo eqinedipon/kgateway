@@ -2002,6 +2002,43 @@ spec:
                               this Value field is ignored and no body transformation will be done.
                             type: string
                         type: object
+                      dynamicMetadata:
+                        description: |-
+                          DynamicMetadata is a list of dynamic metadata entries to set.
+                          The rendered values are stored as strings in Envoy dynamic metadata and
+                          can be used in access log templates or consumed by downstream filters.
+                        items:
+                          description: DynamicMetadataTransformation defines a single
+                            dynamic metadata entry to set.
+                          properties:
+                            key:
+                              description: Key is the metadata key within the namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            namespace:
+                              description: Namespace is the dynamic metadata namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            value:
+                              description: Value is the Inja template whose rendered
+                                output is stored as the metadata value.
+                              minLength: 1
+                              type: string
+                          required:
+                          - key
+                          - namespace
+                          - value
+                          type: object
+                        maxItems: 16
+                        type: array
+                        x-kubernetes-list-type: atomic
+                        x-kubernetes-validations:
+                        - message: dynamicMetadata entries must have unique namespace/key
+                            combinations
+                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
+                            && m1.key == m2.key))
                       remove:
                         description: Remove is a list of header names to remove from
                           the request/response.
@@ -2031,41 +2068,6 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
-                      setMetadata:
-                        description: |-
-                          SetMetadata is a list of dynamic metadata entries to set.
-                          The rendered values are stored as strings in Envoy dynamic metadata and
-                          can be used in access log templates or consumed by downstream filters.
-                        items:
-                          description: DynamicMetadataTransformation defines a single
-                            dynamic metadata entry to set.
-                          properties:
-                            key:
-                              description: Key is the metadata key within the namespace.
-                              maxLength: 256
-                              minLength: 1
-                              type: string
-                            namespace:
-                              description: Namespace is the dynamic metadata namespace.
-                              maxLength: 256
-                              minLength: 1
-                              type: string
-                            value:
-                              description: Value is the Inja template whose rendered
-                                output is stored as the metadata value.
-                              type: string
-                          required:
-                          - key
-                          - namespace
-                          type: object
-                        maxItems: 16
-                        type: array
-                        x-kubernetes-list-type: atomic
-                        x-kubernetes-validations:
-                        - message: setMetadata entries must have unique namespace/key
-                            combinations
-                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
-                            && m1.key == m2.key))
                     type: object
                   response:
                     description: Response is used to modify the response path.
@@ -2118,6 +2120,43 @@ spec:
                               this Value field is ignored and no body transformation will be done.
                             type: string
                         type: object
+                      dynamicMetadata:
+                        description: |-
+                          DynamicMetadata is a list of dynamic metadata entries to set.
+                          The rendered values are stored as strings in Envoy dynamic metadata and
+                          can be used in access log templates or consumed by downstream filters.
+                        items:
+                          description: DynamicMetadataTransformation defines a single
+                            dynamic metadata entry to set.
+                          properties:
+                            key:
+                              description: Key is the metadata key within the namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            namespace:
+                              description: Namespace is the dynamic metadata namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            value:
+                              description: Value is the Inja template whose rendered
+                                output is stored as the metadata value.
+                              minLength: 1
+                              type: string
+                          required:
+                          - key
+                          - namespace
+                          - value
+                          type: object
+                        maxItems: 16
+                        type: array
+                        x-kubernetes-list-type: atomic
+                        x-kubernetes-validations:
+                        - message: dynamicMetadata entries must have unique namespace/key
+                            combinations
+                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
+                            && m1.key == m2.key))
                       remove:
                         description: Remove is a list of header names to remove from
                           the request/response.
@@ -2147,41 +2186,6 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
-                      setMetadata:
-                        description: |-
-                          SetMetadata is a list of dynamic metadata entries to set.
-                          The rendered values are stored as strings in Envoy dynamic metadata and
-                          can be used in access log templates or consumed by downstream filters.
-                        items:
-                          description: DynamicMetadataTransformation defines a single
-                            dynamic metadata entry to set.
-                          properties:
-                            key:
-                              description: Key is the metadata key within the namespace.
-                              maxLength: 256
-                              minLength: 1
-                              type: string
-                            namespace:
-                              description: Namespace is the dynamic metadata namespace.
-                              maxLength: 256
-                              minLength: 1
-                              type: string
-                            value:
-                              description: Value is the Inja template whose rendered
-                                output is stored as the metadata value.
-                              type: string
-                          required:
-                          - key
-                          - namespace
-                          type: object
-                        maxItems: 16
-                        type: array
-                        x-kubernetes-list-type: atomic
-                        x-kubernetes-validations:
-                        - message: setMetadata entries must have unique namespace/key
-                            combinations
-                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
-                            && m1.key == m2.key))
                     type: object
                 type: object
               urlRewrite:

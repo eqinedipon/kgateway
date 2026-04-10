@@ -972,7 +972,7 @@ mod tests {
             "set": [
               { "name": "X-User", "value": "{{ header(\"x-user-id\") }}" }
             ],
-            "setMetadata": [
+            "dynamicMetadata": [
               { "namespace": "com.example.auth", "key": "user-id", "value": "{{ header(\"x-user-id\") }}" }
             ]
           }

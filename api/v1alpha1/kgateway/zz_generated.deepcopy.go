@@ -5369,8 +5369,8 @@ func (in *Transform) DeepCopyInto(out *Transform) {
 		*out = new(BodyTransformation)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.SetMetadata != nil {
-		in, out := &in.SetMetadata, &out.SetMetadata
+	if in.DynamicMetadata != nil {
+		in, out := &in.DynamicMetadata, &out.DynamicMetadata
 		*out = make([]DynamicMetadataTransformation, len(*in))
 		copy(*out, *in)
 	}

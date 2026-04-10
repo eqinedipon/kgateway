@@ -33,15 +33,6 @@ Listeners:
               '@type': type.googleapis.com/google.protobuf.StringValue
               value: '{}'
             filterName: http_simple_mutations
-        - disabled: true
-          name: zz-allow-conditionally
-          typedConfig:
-            '@type': type.googleapis.com/envoy.api.v2.filter.http.RouteTransformations
-        - disabled: true
-          name: deny-all/envoy.filters.http.rbac
-          typedConfig:
-            '@type': type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC
-            rules: {}
         - name: envoy.filters.http.router
           typedConfig:
             '@type': type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -83,7 +74,7 @@ Routes:
           filterConfig:
             '@type': type.googleapis.com/google.protobuf.StringValue
             value: '{"request":{"set":[{"name":"x-user","value":"{{ header(\"x-user-id\")
-              }}"}],"setMetadata":[{"namespace":"com.example.auth","key":"user-id","value":"{{
+              }}"}],"dynamicMetadata":[{"namespace":"com.example.auth","key":"user-id","value":"{{
               header(\"x-user-id\") }}"}]}}'
           perRouteConfigName: http_simple_mutations
 Statuses:

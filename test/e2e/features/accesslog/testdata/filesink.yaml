@@ -10,12 +10,12 @@ spec:
     name: gateway
   transformation:
     request:
-      setMetadata:
+      dynamicMetadata:
       - namespace: access.logs
         key: request.metadata
         value: access.logs.request.metadata.value
     response:
-      setMetadata:
+      dynamicMetadata:
       - namespace: access.logs
         key: response.metadata
         value: access.logs.response.metadata.value

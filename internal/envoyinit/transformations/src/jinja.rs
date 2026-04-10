@@ -517,7 +517,7 @@ pub fn transform_request<T: TransformationOps>(
         namespace,
         key,
         value,
-    } in &transform.set_metadata
+    } in &transform.dynamic_metadata
     {
         if namespace.is_empty() || key.is_empty() || value.is_empty() {
             continue;
@@ -630,7 +630,7 @@ pub fn transform_response<T: TransformationOps>(
         namespace,
         key,
         value,
-    } in &transform.set_metadata
+    } in &transform.dynamic_metadata
     {
         if namespace.is_empty() || key.is_empty() || value.is_empty() {
             continue;
@@ -675,7 +675,7 @@ pub fn create_env_with_templates(
                 env.add_template_owned(REQUEST_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
         }
-        for meta in &request.set_metadata {
+        for meta in &request.dynamic_metadata {
             if meta.value.is_empty() {
                 continue;
             }
@@ -703,7 +703,7 @@ pub fn create_env_with_templates(
                 env.add_template_owned(RESPONSE_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
         }
-        for meta in &response.set_metadata {
+        for meta in &response.dynamic_metadata {
             if meta.value.is_empty() {
                 continue;
             }
