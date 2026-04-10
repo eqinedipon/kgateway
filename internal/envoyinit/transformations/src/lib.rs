@@ -29,6 +29,8 @@ pub struct LocalTransform {
     pub remove: Vec<String>,
     #[serde(default)]
     pub body: Option<BodyTransform>,
+    #[serde(default, rename = "setMetadata")]
+    pub set_metadata: Vec<MetadataValuePair>,
 }
 
 impl LocalTransform {
@@ -37,6 +39,7 @@ impl LocalTransform {
             && self.set.is_empty()
             && self.remove.is_empty()
             && self.body.as_ref().map(|c| c.is_empty()).unwrap_or(true)
+            && self.set_metadata.is_empty()
     }
 }
 
@@ -70,6 +73,14 @@ pub struct NameValuePair {
 }
 
 #[derive(Default, Clone, Deserialize)]
+pub struct MetadataValuePair {
+    pub namespace: String,
+    pub key: String,
+    #[serde(default)]
+    pub value: String,
+}
+
+#[derive(Default, Clone, Deserialize)]
 pub enum BodyParseBehavior {
     #[default]
     AsString,
@@ -91,6 +102,7 @@ pub trait TransformationOps {
     fn get_response_body(&mut self) -> Vec<u8>;
     fn drain_response_body(&mut self, number_of_bytes: usize) -> bool;
     fn append_response_body(&mut self, data: &[u8]) -> bool;
+    fn set_dynamic_metadata_string(&mut self, namespace: &str, key: &str, value: &str);
 }
 
 #[derive(thiserror::Error, Debug)]

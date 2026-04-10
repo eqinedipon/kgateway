@@ -2026,6 +2026,36 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
+                      setMetadata:
+                        description: |-
+                          SetMetadata is a list of dynamic metadata entries to set.
+                          The rendered values are stored as strings in Envoy dynamic metadata and
+                          can be used in access log templates or consumed by downstream filters.
+                        items:
+                          description: DynamicMetadataTransformation defines a single
+                            dynamic metadata entry to set.
+                          properties:
+                            key:
+                              description: Key is the metadata key within the namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            namespace:
+                              description: Namespace is the dynamic metadata namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            value:
+                              description: Value is the Inja template whose rendered
+                                output is stored as the metadata value.
+                              type: string
+                          required:
+                          - key
+                          - namespace
+                          type: object
+                        maxItems: 16
+                        type: array
+                        x-kubernetes-list-type: atomic
                     type: object
                   response:
                     description: Response is used to modify the response path.
@@ -2102,6 +2132,36 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
+                      setMetadata:
+                        description: |-
+                          SetMetadata is a list of dynamic metadata entries to set.
+                          The rendered values are stored as strings in Envoy dynamic metadata and
+                          can be used in access log templates or consumed by downstream filters.
+                        items:
+                          description: DynamicMetadataTransformation defines a single
+                            dynamic metadata entry to set.
+                          properties:
+                            key:
+                              description: Key is the metadata key within the namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            namespace:
+                              description: Namespace is the dynamic metadata namespace.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                            value:
+                              description: Value is the Inja template whose rendered
+                                output is stored as the metadata value.
+                              type: string
+                          required:
+                          - key
+                          - namespace
+                          type: object
+                        maxItems: 16
+                        type: array
+                        x-kubernetes-list-type: atomic
                     type: object
                 type: object
               urlRewrite:

@@ -1,6 +1,7 @@
 use crate::BodyParseBehavior;
 use crate::LocalTransform;
 use crate::LocalTransformationConfig;
+use crate::MetadataValuePair;
 use crate::NameValuePair;
 use crate::TransformationError;
 use crate::TransformationOps;
@@ -432,6 +433,29 @@ pub fn transform_request<T: TransformationOps>(
         ops.remove_request_header(key);
     }
 
+    for MetadataValuePair {
+        namespace,
+        key,
+        value,
+    } in &transform.set_metadata
+    {
+        if value.is_empty() {
+            continue;
+        }
+        let rendered = match render(env, &ctx, value, value, parsed_body_as_json) {
+            Ok(s) => Some(s),
+            Err(err) => {
+                errors.push(err);
+                None
+            }
+        };
+        if let Some(v) = rendered.as_deref() {
+            if !v.is_empty() {
+                ops.set_dynamic_metadata_string(namespace, key, v);
+            }
+        }
+    }
+
     combine_errors("transform_request()", errors)
 }
 
@@ -598,6 +622,29 @@ pub fn transform_response<T: TransformationOps>(
         ops.remove_response_header(key);
     }
 
+    for MetadataValuePair {
+        namespace,
+        key,
+        value,
+    } in &transform.set_metadata
+    {
+        if value.is_empty() {
+            continue;
+        }
+        let rendered = match render(env, &ctx, value, value, parsed_body_as_json) {
+            Ok(s) => Some(s),
+            Err(err) => {
+                errors.push(err);
+                None
+            }
+        };
+        if let Some(v) = rendered.as_deref() {
+            if !v.is_empty() {
+                ops.set_dynamic_metadata_string(namespace, key, v);
+            }
+        }
+    }
+
     combine_errors("transform_response()", errors)
 }
 
@@ -623,6 +670,12 @@ pub fn create_env_with_templates(
                 env.add_template_owned(REQUEST_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
         }
+        for meta in &request.set_metadata {
+            if meta.value.is_empty() {
+                continue;
+            }
+            env.add_template_owned(meta.value.clone(), meta.value.clone())?;
+        }
     }
     if let Some(response) = &config.response {
         for pair in &response.add {
@@ -641,6 +694,12 @@ pub fn create_env_with_templates(
             if !body.value.is_empty() {
                 env.add_template_owned(RESPONSE_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
+        }
+        for meta in &response.set_metadata {
+            if meta.value.is_empty() {
+                continue;
+            }
+            env.add_template_owned(meta.value.clone(), meta.value.clone())?;
         }
     }
     Ok(env)
