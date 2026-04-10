@@ -2061,6 +2061,11 @@ spec:
                         maxItems: 16
                         type: array
                         x-kubernetes-list-type: atomic
+                        x-kubernetes-validations:
+                        - message: setMetadata entries must have unique namespace/key
+                            combinations
+                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
+                            && m1.key == m2.key))
                     type: object
                   response:
                     description: Response is used to modify the response path.
@@ -2172,6 +2177,11 @@ spec:
                         maxItems: 16
                         type: array
                         x-kubernetes-list-type: atomic
+                        x-kubernetes-validations:
+                        - message: setMetadata entries must have unique namespace/key
+                            combinations
+                          rule: self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace
+                            && m1.key == m2.key))
                     type: object
                 type: object
               urlRewrite:

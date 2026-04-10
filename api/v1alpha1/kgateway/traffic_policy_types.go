@@ -247,6 +247,7 @@ type Transform struct {
 	// +optional
 	// +listType=atomic
 	// +kubebuilder:validation:MaxItems=16
+	// +kubebuilder:validation:XValidation:rule="self.all(m1, self.exists_one(m2, m1.namespace == m2.namespace && m1.key == m2.key))",message="setMetadata entries must have unique namespace/key combinations"
 	SetMetadata []DynamicMetadataTransformation `json:"setMetadata,omitempty"`
 }
 
