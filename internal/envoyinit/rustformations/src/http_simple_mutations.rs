@@ -989,10 +989,7 @@ mod tests {
         envoy_filter.expect_get_request_headers().returning(|| {
             vec![
                 (EnvoyBuffer::new("host"), EnvoyBuffer::new("example.com")),
-                (
-                    EnvoyBuffer::new("x-user-id"),
-                    EnvoyBuffer::new("alice"),
-                ),
+                (EnvoyBuffer::new("x-user-id"), EnvoyBuffer::new("alice")),
             ]
         });
 
