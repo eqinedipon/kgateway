@@ -978,8 +978,8 @@ mod tests {
           }
         }
         "#;
-        let filter_conf =
-            FilterConfig::new(json_str).expect("Failed to parse filter config json: {json_str}");
+        let filter_conf = FilterConfig::new(json_str)
+            .unwrap_or_else(|| panic!("Failed to parse filter config json: {}", json_str));
         let mut filter = filter_conf.new_http_filter(&mut envoy_filter);
 
         envoy_filter

@@ -519,10 +519,11 @@ pub fn transform_request<T: TransformationOps>(
         value,
     } in &transform.set_metadata
     {
-        if value.is_empty() {
+        if namespace.is_empty() || key.is_empty() || value.is_empty() {
             continue;
         }
-        let rendered = match render(env, &ctx, value, value, parsed_body_as_json) {
+        let template_key = format!("{}/{}", namespace, key);
+        let rendered = match render(env, &ctx, &template_key, value, parsed_body_as_json) {
             Ok(s) => Some(s),
             Err(err) => {
                 errors.push(err);
@@ -631,10 +632,11 @@ pub fn transform_response<T: TransformationOps>(
         value,
     } in &transform.set_metadata
     {
-        if value.is_empty() {
+        if namespace.is_empty() || key.is_empty() || value.is_empty() {
             continue;
         }
-        let rendered = match render(env, &ctx, value, value, parsed_body_as_json) {
+        let template_key = format!("{}/{}", namespace, key);
+        let rendered = match render(env, &ctx, &template_key, value, parsed_body_as_json) {
             Ok(s) => Some(s),
             Err(err) => {
                 errors.push(err);
@@ -677,7 +679,10 @@ pub fn create_env_with_templates(
             if meta.value.is_empty() {
                 continue;
             }
-            env.add_template_owned(meta.value.clone(), meta.value.clone())?;
+            env.add_template_owned(
+                format!("{}/{}", meta.namespace, meta.key),
+                meta.value.clone(),
+            )?;
         }
     }
     if let Some(response) = &config.response {
@@ -702,7 +707,10 @@ pub fn create_env_with_templates(
             if meta.value.is_empty() {
                 continue;
             }
-            env.add_template_owned(meta.value.clone(), meta.value.clone())?;
+            env.add_template_owned(
+                format!("{}/{}", meta.namespace, meta.key),
+                meta.value.clone(),
+            )?;
         }
     }
     Ok(env)
