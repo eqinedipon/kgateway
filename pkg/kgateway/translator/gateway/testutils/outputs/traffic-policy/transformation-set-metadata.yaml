@@ -73,8 +73,10 @@ Routes:
             name: rust_module
           filterConfig:
             '@type': type.googleapis.com/google.protobuf.StringValue
-            value: '{"request":{"set":[{"name":"x-user","value":"{{ header(\"x-user-id\")
-              }}"}],"dynamicMetadata":[{"namespace":"com.example.auth","key":"user-id","value":"{{
+            value: '{"request":{"set":[{"name":"x-user-request","value":"{{ header(\"x-user-id\")
+              }}"}],"dynamicMetadata":[{"namespace":"com.example.auth","key":"user-id-request","value":"{{
+              header(\"x-user-id\") }}"}]},"response":{"set":[{"name":"x-user-response","value":"{{
+              header(\"x-user-id\") }}"}],"dynamicMetadata":[{"namespace":"com.example.auth","key":"user-id-response","value":"{{
               header(\"x-user-id\") }}"}]}}'
           perRouteConfigName: http_simple_mutations
 Statuses:

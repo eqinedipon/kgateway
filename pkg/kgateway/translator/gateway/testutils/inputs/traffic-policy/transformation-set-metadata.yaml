@@ -41,11 +41,19 @@ spec:
   transformation:
     request:
       set:
-      - name: x-user
+      - name: x-user-request
         value: '{{ header("x-user-id") }}'
       dynamicMetadata:
       - namespace: com.example.auth
-        key: user-id
+        key: user-id-request
+        value: '{{ header("x-user-id") }}'
+    response:
+      set:
+      - name: x-user-response
+        value: '{{ header("x-user-id") }}'
+      dynamicMetadata:
+      - namespace: com.example.auth
+        key: user-id-response
         value: '{{ header("x-user-id") }}'
 ---
 apiVersion: v1

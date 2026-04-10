@@ -512,11 +512,11 @@ pub fn transform_request<T: TransformationOps>(
         )?;
     }
 
-    for (i, meta) in transform.dynamic_metadata.iter().enumerate() {
+    for meta in transform.dynamic_metadata.iter() {
         if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
             continue;
         }
-        let template_key = format!("request.dynamicMetadata[{}]", i);
+        let template_key = format!("request.dynamicMetadata[{}.{}]", meta.namespace, meta.key);
         let rendered = render_or_abort(
             env,
             &ctx,
@@ -621,11 +621,11 @@ pub fn transform_response<T: TransformationOps>(
         )?;
     }
 
-    for (i, meta) in transform.dynamic_metadata.iter().enumerate() {
+    for meta in transform.dynamic_metadata.iter() {
         if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
             continue;
         }
-        let template_key = format!("response.dynamicMetadata[{}]", i);
+        let template_key = format!("response.dynamicMetadata[{}.{}]", meta.namespace, meta.key);
         let rendered = render_or_abort(
             env,
             &ctx,
@@ -666,12 +666,12 @@ pub fn create_env_with_templates(
                 env.add_template_owned(REQUEST_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
         }
-        for (i, meta) in request.dynamic_metadata.iter().enumerate() {
+        for meta in request.dynamic_metadata.iter() {
             if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
                 continue;
             }
             env.add_template_owned(
-                format!("request.dynamicMetadata[{}]", i),
+                format!("request.dynamicMetadata[{}.{}]", meta.namespace, meta.key),
                 meta.value.clone(),
             )?;
         }
@@ -694,12 +694,12 @@ pub fn create_env_with_templates(
                 env.add_template_owned(RESPONSE_BODY_TEMPLATE_LOOKUP_KEY, body.value.clone())?;
             }
         }
-        for (i, meta) in response.dynamic_metadata.iter().enumerate() {
+        for meta in response.dynamic_metadata.iter() {
             if meta.namespace.is_empty() || meta.key.is_empty() || meta.value.is_empty() {
                 continue;
             }
             env.add_template_owned(
-                format!("response.dynamicMetadata[{}]", i),
+                format!("response.dynamicMetadata[{}.{}]", meta.namespace, meta.key),
                 meta.value.clone(),
             )?;
         }
