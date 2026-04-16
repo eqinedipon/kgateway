@@ -520,7 +520,7 @@ func (tc *tcpFilterChain) translateTcpFilterChain(
 	}
 }
 
-type tcpRouteIR interface {
+type tcpRouteLike interface {
 	GetParentRefs() []gwv1.ParentReference
 	GetSourceObject() metav1.Object
 }
@@ -531,7 +531,7 @@ type translatedTCPRoute struct {
 	backends        []ir.BackendRefIR
 }
 
-func translateRouteToTCPIR[T tcpRouteIR](
+func translateRouteToTCPIR[T tcpRouteLike](
 	route T,
 	parentName string,
 	reporter reports.Reporter,
