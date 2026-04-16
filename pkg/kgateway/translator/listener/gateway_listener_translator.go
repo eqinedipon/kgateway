@@ -459,179 +459,137 @@ func (tc *tcpFilterChain) translateTcpFilterChain(
 		return a.Object.GetSourceObject().GetCreationTimestamp().Compare(b.Object.GetSourceObject().GetCreationTimestamp().Time)
 	})
 
-	switch r.Object.(type) {
+	var translatedRoute *translatedTCPRoute
+	switch tRoute := r.Object.(type) {
 	case *ir.TcpRouteIR:
-		tRoute := r.Object.(*ir.TcpRouteIR)
-
-		var condition reports.RouteCondition
-		if len(tRoute.SourceObject.Spec.Rules) == 1 {
-			condition = reports.RouteCondition{
-				Type:   gwv1.RouteConditionAccepted,
-				Status: metav1.ConditionTrue,
-				Reason: gwv1.RouteReasonAccepted,
-			}
-		} else {
-			condition = reports.RouteCondition{
-				Type:   gwv1.RouteConditionAccepted,
-				Status: metav1.ConditionFalse,
-				Reason: gwv1.RouteReasonUnsupportedValue,
-			}
-		}
-		if condition.Status != metav1.ConditionTrue {
-			return nil
-		}
-
-		// Collect ParentRefReporters for the TCPRoute
-		parentRefReporters := make([]reports.ParentRefReporter, 0, len(tRoute.ParentRefs))
-		for _, parentRef := range tRoute.ParentRefs {
-			parentRefReporter := reporter.Route(tRoute.SourceObject).ParentRef(&parentRef)
-			parentRefReporter.SetCondition(condition)
-			parentRefReporters = append(parentRefReporters, parentRefReporter)
-		}
-
-		// Ensure unique names by appending the rule index to the TCPRoute name
-		tcpHostName := fmt.Sprintf("%s-%s.%s-rule-%d", parentName, tRoute.Namespace, tRoute.Name, 0)
-		var backends []ir.BackendRefIR
-		for _, backend := range tRoute.Backends {
-			// validate that we don't have an error:
-			if backend.Err != nil || backend.BackendObject == nil {
-				err := backend.Err
-				if err == nil {
-					err = errors.New("not found")
-				}
-				for _, parentRefReporter := range parentRefReporters {
-					query.ProcessBackendError(err, parentRefReporter)
-				}
-			}
-			// add backend even if we have errors, as according to spec, with multiple destinations,
-			// they should fail based of the weights.
-			backends = append(backends, backend)
-		}
-		// Avoid creating a TcpListener if there are no TcpHosts
-		if len(backends) == 0 {
-			return nil
-		}
-
-		resolvedValidation, err := resolveFrontendTLSConfig(tc.parents.listener.Port, frontendTLSConfig)
-		if err != nil {
-			reportTLSConfigError(err, tc.listenerReporter, resolvedValidation != nil)
-			// An error and a non-nil validation means that the listener is partially valid,
-			// and we should continue to translate the listener after writing the error to status
-			if resolvedValidation == nil {
-				return nil
-			}
-		}
-
-		tlsConfig, err := translateTLSConfig(kctx, ctx, tc.parents.listener, tc.tls, queries, resolvedValidation)
-		if err != nil {
-			// An error and a non-nil tlsConfig means that the listener is partially valid,
-			// and we should continue to translate the listener after writing the error to status
-			reportTLSConfigError(err, tc.listenerReporter, tlsConfig != nil)
-			if tlsConfig == nil {
-				return nil
-			}
-		}
-
-		if tlsConfig != nil && len(tlsConfig.AlpnProtocols) == 0 {
-			tlsConfig.AlpnProtocols = []string{string(annotations.AllowEmptyAlpnProtocols)}
-		}
-
-		return &ir.TcpIR{
-			FilterChainCommon: ir.FilterChainCommon{
-				FilterChainName: tcpHostName,
-				TLS:             tlsConfig,
-			},
-			BackendRefs: backends,
-		}
+		translatedRoute = translateRouteToTCPIR(
+			tRoute,
+			parentName,
+			reporter,
+			len(tRoute.SourceObject.Spec.Rules),
+			tRoute.Backends,
+			ir.FilterChainMatch{},
+		)
 	case *ir.TlsRouteIR:
-		tRoute := r.Object.(*ir.TlsRouteIR)
-
-		var condition reports.RouteCondition
-		if len(tRoute.SourceObject.Spec.Rules) == 1 {
-			condition = reports.RouteCondition{
-				Type:   gwv1.RouteConditionAccepted,
-				Status: metav1.ConditionTrue,
-				Reason: gwv1.RouteReasonAccepted,
-			}
-		} else {
-			condition = reports.RouteCondition{
-				Type:   gwv1.RouteConditionAccepted,
-				Status: metav1.ConditionFalse,
-				Reason: gwv1.RouteReasonUnsupportedValue,
-			}
-		}
-		if condition.Status != metav1.ConditionTrue {
-			return nil
-		}
-
-		parentRefReporters := make([]reports.ParentRefReporter, 0, len(tRoute.ParentRefs))
-		for _, parentRef := range tRoute.ParentRefs {
-			parentRefReporter := reporter.Route(tRoute.SourceObject).ParentRef(&parentRef)
-			parentRefReporter.SetCondition(condition)
-			parentRefReporters = append(parentRefReporters, parentRefReporter)
-		}
-
-		// Ensure unique names by appending the rule index to the TLSRoute name
-		tcpHostName := fmt.Sprintf("%s-%s.%s-rule-%d", parentName, tRoute.Namespace, tRoute.Name, 0)
-		var backends []ir.BackendRefIR
-		for _, backend := range tRoute.Backends {
-			// validate that we don't have an error:
-			if backend.Err != nil || backend.BackendObject == nil {
-				err := backend.Err
-				if err == nil {
-					err = errors.New("not found")
-				}
-				for _, parentRefReporter := range parentRefReporters {
-					query.ProcessBackendError(err, parentRefReporter)
-				}
-			}
-			// add backend even if we have errors, as according to spec, with multiple destinations,
-			// they should fail based of the weights.
-			backends = append(backends, backend)
-		}
-		// Avoid creating a TcpListener if there are no TcpHosts
-		if len(backends) == 0 {
-			return nil
-		}
-
-		// Resolve and translate TLS config for TLS termination (same as TCPRoute)
-		resolvedValidation, err := resolveFrontendTLSConfig(tc.parents.listener.Port, frontendTLSConfig)
-		if err != nil {
-			// An error and a non-nil validation means that the listener is partially valid,
-			// and we should continue to translate the listener after writing the error to status
-			reportTLSConfigError(err, tc.listenerReporter, resolvedValidation != nil)
-			if resolvedValidation == nil {
-				return nil
-			}
-		}
-
-		tlsConfig, err := translateTLSConfig(kctx, ctx, tc.parents.listener, tc.tls, queries, resolvedValidation)
-		if err != nil {
-			// An error and a non-nil tlsConfig means that the listener is partially valid,
-			// and we should continue to translate the listener after writing the error to status
-			reportTLSConfigError(err, tc.listenerReporter, tlsConfig != nil)
-			if tlsConfig == nil {
-				return nil
-			}
-		}
-
-		if tlsConfig != nil && len(tlsConfig.AlpnProtocols) == 0 {
-			tlsConfig.AlpnProtocols = []string{string(annotations.AllowEmptyAlpnProtocols)}
-		}
-
-		var matcher ir.FilterChainMatch
-		matcher.SniDomains = slices.Clone(tc.sniDomains)
-
-		return &ir.TcpIR{
-			FilterChainCommon: ir.FilterChainCommon{
-				FilterChainName: tcpHostName,
-				Matcher:         matcher,
-				TLS:             tlsConfig,
-			},
-			BackendRefs: backends,
-		}
+		translatedRoute = translateRouteToTCPIR(
+			tRoute,
+			parentName,
+			reporter,
+			len(tRoute.SourceObject.Spec.Rules),
+			tRoute.Backends,
+			ir.FilterChainMatch{SniDomains: slices.Clone(tc.sniDomains)},
+		)
 	default:
 		return nil
+	}
+	if translatedRoute == nil {
+		return nil
+	}
+
+	resolvedValidation, err := resolveFrontendTLSConfig(tc.parents.listener.Port, frontendTLSConfig)
+	if err != nil {
+		reportTLSConfigError(err, tc.listenerReporter, resolvedValidation != nil)
+		// An error and a non-nil validation means that the listener is partially valid,
+		// and we should continue to translate the listener after writing the error to status
+		if resolvedValidation == nil {
+			return nil
+		}
+	}
+
+	tlsConfig, err := translateTLSConfig(kctx, ctx, tc.parents.listener, tc.tls, queries, resolvedValidation)
+	if err != nil {
+		// An error and a non-nil tlsConfig means that the listener is partially valid,
+		// and we should continue to translate the listener after writing the error to status
+		reportTLSConfigError(err, tc.listenerReporter, tlsConfig != nil)
+		if tlsConfig == nil {
+			return nil
+		}
+	}
+
+	if tlsConfig != nil && len(tlsConfig.AlpnProtocols) == 0 {
+		tlsConfig.AlpnProtocols = []string{string(annotations.AllowEmptyAlpnProtocols)}
+	}
+
+	return &ir.TcpIR{
+		FilterChainCommon: ir.FilterChainCommon{
+			FilterChainName: translatedRoute.filterChainName,
+			Matcher:         translatedRoute.matcher,
+			TLS:             tlsConfig,
+		},
+		BackendRefs: translatedRoute.backends,
+	}
+}
+
+type tcpRouteIR interface {
+	GetParentRefs() []gwv1.ParentReference
+	GetSourceObject() metav1.Object
+}
+
+type translatedTCPRoute struct {
+	filterChainName string
+	matcher         ir.FilterChainMatch
+	backends        []ir.BackendRefIR
+}
+
+func translateRouteToTCPIR[T tcpRouteIR](
+	route T,
+	parentName string,
+	reporter reports.Reporter,
+	ruleCount int,
+	routeBackends []ir.BackendRefIR,
+	matcher ir.FilterChainMatch,
+) *translatedTCPRoute {
+	condition := acceptedTCPRouteCondition(ruleCount)
+	if condition.Status != metav1.ConditionTrue {
+		return nil
+	}
+
+	sourceObject := route.GetSourceObject()
+	parentRefReporters := make([]reports.ParentRefReporter, 0, len(route.GetParentRefs()))
+	for _, parentRef := range route.GetParentRefs() {
+		parentRefReporter := reporter.Route(sourceObject).ParentRef(&parentRef)
+		parentRefReporter.SetCondition(condition)
+		parentRefReporters = append(parentRefReporters, parentRefReporter)
+	}
+
+	backends := make([]ir.BackendRefIR, 0, len(routeBackends))
+	for _, backend := range routeBackends {
+		if backend.Err != nil || backend.BackendObject == nil {
+			err := backend.Err
+			if err == nil {
+				err = errors.New("not found")
+			}
+			for _, parentRefReporter := range parentRefReporters {
+				query.ProcessBackendError(err, parentRefReporter)
+			}
+		}
+		// add backend even if we have errors, as according to spec, with multiple destinations,
+		// they should fail based of the weights.
+		backends = append(backends, backend)
+	}
+	if len(backends) == 0 {
+		return nil
+	}
+
+	return &translatedTCPRoute{
+		filterChainName: fmt.Sprintf("%s-%s.%s-rule-%d", parentName, sourceObject.GetNamespace(), sourceObject.GetName(), 0),
+		matcher:         matcher,
+		backends:        backends,
+	}
+}
+
+func acceptedTCPRouteCondition(ruleCount int) reports.RouteCondition {
+	if ruleCount == 1 {
+		return reports.RouteCondition{
+			Type:   gwv1.RouteConditionAccepted,
+			Status: metav1.ConditionTrue,
+			Reason: gwv1.RouteReasonAccepted,
+		}
+	}
+	return reports.RouteCondition{
+		Type:   gwv1.RouteConditionAccepted,
+		Status: metav1.ConditionFalse,
+		Reason: gwv1.RouteReasonUnsupportedValue,
 	}
 }
 
