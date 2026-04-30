@@ -2,6 +2,8 @@
 
 A fork of [kgateway-dev/kgateway](https://github.com/kgateway-dev/kgateway) — a Kubernetes-native API Gateway built on Envoy Proxy.
 
+> **Personal fork** — I'm using this to learn Kubernetes Gateway API and experiment with Envoy-based routing configs.
+
 ## Overview
 
 kgateway is a feature-rich, Kubernetes-native API Gateway that leverages [Envoy Proxy](https://www.envoyproxy.io/) as the data plane. It provides advanced traffic management, security, and observability capabilities for microservices running on Kubernetes.
